@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <StartupObject>Spikit.Program</StartupObject>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
