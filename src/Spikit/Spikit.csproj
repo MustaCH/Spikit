@@ -6,7 +6,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <StartupObject>Spikit.Program</StartupObject>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Page Update="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Update="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="WPF-UI" />
@@ -17,6 +30,13 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
