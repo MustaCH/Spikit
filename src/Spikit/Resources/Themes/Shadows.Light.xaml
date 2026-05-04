@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <DropShadowEffect x:Key="SpkShadowSm"
+                      Color="#0F0F0F" Opacity="0.06"
+                      BlurRadius="2" ShadowDepth="1" Direction="270" />
+
+    <DropShadowEffect x:Key="SpkShadowMd"
+                      Color="#0F0F0F" Opacity="0.08"
+                      BlurRadius="12" ShadowDepth="4" Direction="270" />
+
+    <DropShadowEffect x:Key="SpkShadowLg"
+                      Color="#0F0F0F" Opacity="0.12"
+                      BlurRadius="32" ShadowDepth="12" Direction="270" />
+
+    <DropShadowEffect x:Key="SpkShadowPill"
+                      Color="#0F0F0F" Opacity="0.18"
+                      BlurRadius="24" ShadowDepth="8" Direction="270" />
+
+    <DropShadowEffect x:Key="SpkShadowGlowBrand"
+                      Color="#FF3B30" Opacity="0.20"
+                      BlurRadius="16" ShadowDepth="0" />
+
+</ResourceDictionary>

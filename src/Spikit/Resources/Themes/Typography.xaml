@@ -1,0 +1,115 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <FontFamily x:Key="SpkFontGeist">pack://application:,,,/Resources/Fonts/#Geist</FontFamily>
+    <FontFamily x:Key="SpkFontGeistMono">pack://application:,,,/Resources/Fonts/#Geist Mono</FontFamily>
+
+    <Style x:Key="SpkTypeDisplayStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="32" />
+        <Setter Property="LineHeight" Value="40" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeH1Style" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="LineHeight" Value="32" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeH2Style" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="LineHeight" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeH3Style" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="LineHeight" Value="24" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeBodyLgStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="LineHeight" Value="24" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeBodyStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeBodySmStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeCaptionStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="16" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeButtonStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style x:Key="SpkTypeButtonSmStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style x:Key="SpkTypeMonoStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeistMono}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeMonoSmStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeistMono}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeMonoKbdStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeistMono}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="16" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="SpkTypeLogoStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource SpkFontGeist}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <sys:Double x:Key="SpkSpace0">0</sys:Double>
+    <sys:Double x:Key="SpkSpace0_5">2</sys:Double>
+    <sys:Double x:Key="SpkSpace1">4</sys:Double>
+    <sys:Double x:Key="SpkSpace1_5">6</sys:Double>
+    <sys:Double x:Key="SpkSpace2">8</sys:Double>
+    <sys:Double x:Key="SpkSpace3">12</sys:Double>
+    <sys:Double x:Key="SpkSpace4">16</sys:Double>
+    <sys:Double x:Key="SpkSpace5">20</sys:Double>
+    <sys:Double x:Key="SpkSpace6">24</sys:Double>
+    <sys:Double x:Key="SpkSpace8">32</sys:Double>
+    <sys:Double x:Key="SpkSpace10">40</sys:Double>
+    <sys:Double x:Key="SpkSpace12">48</sys:Double>
+    <sys:Double x:Key="SpkSpace16">64</sys:Double>
+
+    <Thickness x:Key="SpkInset2">8</Thickness>
+    <Thickness x:Key="SpkInset3">12</Thickness>
+    <Thickness x:Key="SpkInset4">16</Thickness>
+    <Thickness x:Key="SpkInset5">20</Thickness>
+    <Thickness x:Key="SpkInset6">24</Thickness>
+    <Thickness x:Key="SpkInset8">32</Thickness>
+
+</ResourceDictionary>

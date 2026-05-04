@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Durations -->
+    <Duration x:Key="SpkMotionInstant">0:0:0</Duration>
+    <Duration x:Key="SpkMotionFast">0:0:0.080</Duration>
+    <Duration x:Key="SpkMotionBase">0:0:0.160</Duration>
+    <Duration x:Key="SpkMotionSlow">0:0:0.240</Duration>
+    <Duration x:Key="SpkMotionSpring">0:0:0.320</Duration>
+
+    <!-- Easings: aproximaciones WPF de los cubic-bezier del design system -->
+    <CubicEase x:Key="SpkEaseOut" EasingMode="EaseOut" />
+    <QuinticEase x:Key="SpkEaseOutStrong" EasingMode="EaseOut" />
+    <BackEase x:Key="SpkEaseSpring" EasingMode="EaseOut" Amplitude="0.5" />
+
+</ResourceDictionary>

@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <CornerRadius x:Key="SpkRadiusNone">0</CornerRadius>
+    <CornerRadius x:Key="SpkRadiusSm">4</CornerRadius>
+    <CornerRadius x:Key="SpkRadiusMd">6</CornerRadius>
+    <CornerRadius x:Key="SpkRadiusLg">8</CornerRadius>
+    <CornerRadius x:Key="SpkRadiusXl">12</CornerRadius>
+    <CornerRadius x:Key="SpkRadiusPill">9999</CornerRadius>
+
+</ResourceDictionary>

@@ -3,6 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Spikit">
     <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Tema activo (swappable en runtime para theme switching) -->
+                <ResourceDictionary Source="Resources/Themes/Colors.Dark.xaml" />
+                <ResourceDictionary Source="Resources/Themes/Shadows.Dark.xaml" />
 
+                <!-- Tokens estáticos (no cambian por tema) -->
+                <ResourceDictionary Source="Resources/Themes/Typography.xaml" />
+                <ResourceDictionary Source="Resources/Themes/Spacing.xaml" />
+                <ResourceDictionary Source="Resources/Themes/Radius.xaml" />
+                <ResourceDictionary Source="Resources/Themes/Motion.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
