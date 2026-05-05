@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using Spikit.Cli;
 using Spikit.Services.Audio;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
@@ -12,6 +13,7 @@ using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
 using Spikit.ViewModels;
 using Spikit.Views;
+using Spikit.Views.Diagnostics;
 
 namespace Spikit;
 
@@ -24,6 +26,8 @@ public static class Program
 
         try
         {
+            var cliArgs = new CommandLineArgs(args);
+
             var host = Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration((_, config) =>
                 {
@@ -32,9 +36,13 @@ public static class Program
                 .UseSerilog()
                 .ConfigureServices((_, services) =>
                 {
+                    services.AddSingleton(cliArgs);
                     services.AddSingleton<App>();
                     services.AddSingleton<MainWindow>();
                     services.AddSingleton<MainWindowViewModel>();
+
+                    // Herramienta de diagnóstico EP-1 accesible vía --diagnostics-poc. Ver ADR-0003.
+                    services.AddSingleton<PocLatencyWindow>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();

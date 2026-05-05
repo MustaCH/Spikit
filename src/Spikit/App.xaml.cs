@@ -2,7 +2,9 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Spikit.Cli;
 using Spikit.Views;
+using Spikit.Views.Diagnostics;
 
 namespace Spikit;
 
@@ -10,11 +12,13 @@ public partial class App : Application
 {
     private readonly IHost _host;
     private readonly ILogger<App> _logger;
+    private readonly CommandLineArgs _cliArgs;
 
-    public App(IHost host, ILogger<App> logger)
+    public App(IHost host, ILogger<App> logger, CommandLineArgs cliArgs)
     {
         _host = host;
         _logger = logger;
+        _cliArgs = cliArgs;
         InitializeComponent();
     }
 
@@ -24,8 +28,12 @@ public partial class App : Application
 
         _logger.LogInformation("App started");
 
-        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+        // Acceso a la herramienta de diagnóstico EP-1 vía --diagnostics-poc. Ver ADR-0003.
+        Window startupWindow = _cliArgs.DiagnosticsPoc
+            ? _host.Services.GetRequiredService<PocLatencyWindow>()
+            : _host.Services.GetRequiredService<MainWindow>();
+
+        startupWindow.Show();
 
         base.OnStartup(e);
     }
