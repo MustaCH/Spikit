@@ -10,6 +10,8 @@ using Spikit.Services.Orchestration;
 using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
+using Spikit.ViewModels;
+using Spikit.Views;
 
 namespace Spikit;
 
@@ -32,6 +34,7 @@ public static class Program
                 {
                     services.AddSingleton<App>();
                     services.AddSingleton<MainWindow>();
+                    services.AddSingleton<MainWindowViewModel>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
