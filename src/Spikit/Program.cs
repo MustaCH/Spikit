@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Serilog;
 using Spikit.Cli;
 using Spikit.Services.Audio;
@@ -34,7 +35,7 @@ public static class Program
                     config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
                 })
                 .UseSerilog()
-                .ConfigureServices((_, services) =>
+                .ConfigureServices((ctx, services) =>
                 {
                     services.AddSingleton(cliArgs);
                     services.AddSingleton<App>();
@@ -46,7 +47,21 @@ public static class Program
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
-                    services.AddSingleton<ITranscriptionService, WhisperApiTranscriptionService>();
+
+                    services.Configure<WhisperApiOptions>(ctx.Configuration.GetSection("Whisper"));
+                    services.AddSingleton(_ => new WhisperApiKey(
+                        // User scope (registry) primero — sobrevive a procesos parent con entorno
+                        // heredado viejo. Process scope como fallback (CI / scripts que la pasan
+                        // explícita). En EP-3 esto se reemplaza por DPAPI.
+                        Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User)
+                        ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
+                        ?? string.Empty));
+                    services.AddHttpClient<ITranscriptionService, WhisperApiTranscriptionService>((sp, client) =>
+                    {
+                        var opts = sp.GetRequiredService<IOptions<WhisperApiOptions>>().Value;
+                        client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
+                    });
+
                     services.AddSingleton<ITextInsertionService, ClipboardPasteService>();
                     services.AddSingleton<ISettingsService, JsonSettingsService>();
                     services.AddSingleton<ISecretStore, DpapiSecretStore>();

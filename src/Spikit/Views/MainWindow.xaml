@@ -4,11 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Spikit — Audio smoke test"
-        Height="460" Width="600"
+        Title="Spikit — Transcription smoke test"
+        Height="640" Width="640"
         Background="{DynamicResource SpkBgCanvasBrush}">
     <Grid Margin="32">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -20,7 +21,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Audio smoke test"
+                   Text="Transcription smoke test"
                    FontSize="20" FontWeight="SemiBold"
                    Foreground="{DynamicResource SpkFgPrimaryBrush}"
                    Margin="0,0,0,4"/>
@@ -31,10 +32,9 @@
                    Margin="0,0,0,16">
             <Run Text="Mantené"/>
             <Run Text="{Binding HotkeyLabel, Mode=OneWay}" FontWeight="SemiBold"/>
-            <Run Text="apretado y hablá. Soltá para cerrar la captura."/>
+            <Run Text="apretado, hablá, soltá. Whisper API procesa el audio post-stop."/>
         </TextBlock>
 
-        <!-- Hotkey + audio state strip -->
         <Border Grid.Row="2"
                 Background="{DynamicResource SpkBgSurfaceBrush}"
                 CornerRadius="8" Padding="16,12">
@@ -48,7 +48,8 @@
                            FontFamily="Consolas, Cascadia Mono, monospace"
                            FontSize="14"
                            Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           VerticalAlignment="Center"/>
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
                 <Border Grid.Column="1"
                         Background="{DynamicResource SpkBgElevatedBrush}"
                         CornerRadius="4" Padding="8,4">
@@ -60,7 +61,6 @@
             </Grid>
         </Border>
 
-        <!-- RMS meter -->
         <TextBlock Grid.Row="3" Margin="0,16,0,6"
                    FontSize="11" FontWeight="SemiBold"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
@@ -68,62 +68,83 @@
         <ProgressBar Grid.Row="4"
                      Minimum="0" Maximum="1"
                      Value="{Binding RmsLevel, Mode=OneWay}"
-                     Height="14"
+                     Height="10"
                      Foreground="{DynamicResource SpkBgBrandSolidBrush}"
                      Background="{DynamicResource SpkBgMutedBrush}"
                      BorderThickness="0"/>
-        <TextBlock Grid.Row="5"
-                   FontFamily="Consolas, Cascadia Mono, monospace"
-                   FontSize="11"
-                   Margin="0,4,0,0"
-                   Foreground="{DynamicResource SpkFgMutedBrush}"
-                   Text="{Binding RmsLevel, StringFormat='RMS = {0:F4}', Mode=OneWay}"/>
 
-        <!-- Session counters -->
-        <Border Grid.Row="6"
+        <Border Grid.Row="5"
                 Margin="0,20,0,0"
                 Background="{DynamicResource SpkBgSurfaceBrush}"
                 CornerRadius="8" Padding="16">
-            <StackPanel>
-                <TextBlock FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Text="ÚLTIMA SESIÓN"
-                           Margin="0,0,0,8"/>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Presses" FontSize="11"
-                                   Foreground="{DynamicResource SpkFgMutedBrush}"/>
-                        <TextBlock Text="{Binding PressCount}"
-                                   FontSize="20" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="Samples" FontSize="11"
-                                   Foreground="{DynamicResource SpkFgMutedBrush}"/>
-                        <TextBlock Text="{Binding SamplesInSession, StringFormat='{}{0:N0}'}"
-                                   FontSize="20" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Duración" FontSize="11"
-                                   Foreground="{DynamicResource SpkFgMutedBrush}"/>
-                        <TextBlock Text="{Binding SessionDurationMs, StringFormat='{}{0:N0} ms'}"
-                                   FontSize="20" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
-                    </StackPanel>
-                </Grid>
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Presses" FontSize="11"
+                               Foreground="{DynamicResource SpkFgMutedBrush}"/>
+                    <TextBlock Text="{Binding PressCount}"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Samples" FontSize="11"
+                               Foreground="{DynamicResource SpkFgMutedBrush}"/>
+                    <TextBlock Text="{Binding SamplesInSession, StringFormat='{}{0:N0}'}"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Duración" FontSize="11"
+                               Foreground="{DynamicResource SpkFgMutedBrush}"/>
+                    <TextBlock Text="{Binding SessionDurationMs, StringFormat='{}{0:N0} ms'}"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
+                </StackPanel>
+            </Grid>
         </Border>
 
-        <TextBlock Grid.Row="7" Margin="0,12,0,0"
+        <Grid Grid.Row="6" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="TRANSCRIPCIÓN" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBlock Text="{Binding TranscriptionState}"
+                           FontFamily="Consolas, Cascadia Mono, monospace"
+                           FontSize="11"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding TranscriptionDurationMs, StringFormat='{}{0} ms'}"
+                           FontFamily="Consolas, Cascadia Mono, monospace"
+                           FontSize="11"
+                           Foreground="{DynamicResource SpkFgMutedBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="7"
+                Margin="0,8,0,0"
+                Background="{DynamicResource SpkBgSurfaceBrush}"
+                CornerRadius="8" Padding="16">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock Text="{Binding TranscribedText}"
+                           FontSize="14"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                           TextWrapping="Wrap"
+                           LineHeight="22"/>
+            </ScrollViewer>
+        </Border>
+
+        <TextBlock Grid.Row="8" Margin="0,12,0,0"
                    FontSize="11"
                    Foreground="{DynamicResource SpkFgMutedBrush}"
                    TextWrapping="Wrap"
-                   Text="El indicador de mic de Windows debería prenderse SOLO mientras tenés el hotkey apretado (privacy strict). Mirá en la barra de tareas. Logs en %AppData%\Spikit\logs\."/>
+                   Text="Whisper API se llama después de soltar el hotkey. Costo: ~USD 0.006/min de audio. Logs en %AppData%\Spikit\logs\."/>
     </Grid>
 </Window>
