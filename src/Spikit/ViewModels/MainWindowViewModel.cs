@@ -3,14 +3,16 @@ using System.Threading;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Spikit.Models;
+using Spikit.Native;
 using Spikit.Services.Audio;
 using Spikit.Services.Hotkey;
+using Spikit.Services.Insertion;
 using Spikit.Services.Transcription;
 
 namespace Spikit.ViewModels;
 
-// NOTA TEMPORAL: este VM hace de smoke-test del HotkeyService + AudioCaptureService
-// + WhisperApiTranscriptionService hasta que llegue DictationOrchestrator (EP-2 sub-task #5).
+// NOTA TEMPORAL: este VM hace de smoke-test del pipeline completo (Hotkey + Audio +
+// Transcription + Insertion) hasta que llegue DictationOrchestrator (EP-2 sub-task #5).
 // Cuando exista, mover el flow al orchestrator y dejar este VM acotado al chrome.
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
@@ -20,6 +22,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly IHotkeyService _hotkey;
     private readonly IAudioCaptureService _audio;
     private readonly ITranscriptionService _transcription;
+    private readonly ITextInsertionService _insertion;
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _refreshTimer;
@@ -37,6 +40,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     private string _transcriptionState = "—";
     private string _transcribedText = string.Empty;
     private long _transcriptionDurationMs;
+    private string _insertionState = "—";
+    private string _targetWindowDescription = "—";
+    private IntPtr _targetHwnd;
     private CancellationTokenSource? _audioCts;
     private CancellationTokenSource? _transcribeCts;
     private bool _disposed;
@@ -45,11 +51,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         IHotkeyService hotkey,
         IAudioCaptureService audio,
         ITranscriptionService transcription,
+        ITextInsertionService insertion,
         ILogger<MainWindowViewModel> logger)
     {
         _hotkey = hotkey;
         _audio = audio;
         _transcription = transcription;
+        _insertion = insertion;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -139,8 +147,28 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref _transcriptionDurationMs, value);
     }
 
+    public string InsertionState
+    {
+        get => _insertionState;
+        private set => SetProperty(ref _insertionState, value);
+    }
+
+    public string TargetWindowDescription
+    {
+        get => _targetWindowDescription;
+        private set => SetProperty(ref _targetWindowDescription, value);
+    }
+
     private async void OnHotkeyPressed(object? sender, EventArgs e)
     {
+        // Capturar el HWND foreground ANTES de cualquier otro trabajo. CB-6: ese es el
+        // target real del paste. Si esperamos al final de la sesión, el usuario podría
+        // haber alt-tabbeado y romper el target.
+        _targetHwnd = User32.GetForegroundWindow();
+        TargetWindowDescription = _targetHwnd == IntPtr.Zero
+            ? "(ninguno)"
+            : $"HWND 0x{_targetHwnd.ToInt64():X}";
+
         PressCount++;
         HotkeyStatus = $"● Pressed (#{PressCount})";
         Interlocked.Exchange(ref _samplesAccumulator, 0);
@@ -149,6 +177,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         TranscriptionState = "—";
         TranscribedText = string.Empty;
         TranscriptionDurationMs = 0;
+        InsertionState = "—";
 
         lock (_bufferLock) _sessionBuffer.Clear();
 
@@ -207,16 +236,17 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         _transcribeCts = new CancellationTokenSource();
 
         var sw = Stopwatch.StartNew();
+        string? transcribedText = null;
         try
         {
-            var text = await _transcription.TranscribeAsync(wav, _transcribeCts.Token).ConfigureAwait(true);
+            transcribedText = await _transcription.TranscribeAsync(wav, _transcribeCts.Token).ConfigureAwait(true);
             sw.Stop();
             TranscriptionDurationMs = sw.ElapsedMilliseconds;
             TranscriptionState = "✓ OK";
-            TranscribedText = string.IsNullOrWhiteSpace(text) ? "(vacío)" : text;
+            TranscribedText = string.IsNullOrWhiteSpace(transcribedText) ? "(vacío)" : transcribedText;
             _logger.LogInformation(
                 "Transcripción OK en {DurationMs} ms: {Text}",
-                sw.ElapsedMilliseconds, text);
+                sw.ElapsedMilliseconds, transcribedText);
         }
         catch (TranscriptionException ex)
         {
@@ -233,6 +263,39 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             TranscriptionState = "✗ Cancelada";
             sw.Stop();
             TranscriptionDurationMs = sw.ElapsedMilliseconds;
+        }
+
+        if (!string.IsNullOrWhiteSpace(transcribedText))
+        {
+            await InsertTranscriptionAsync(transcribedText).ConfigureAwait(true);
+        }
+    }
+
+    private async Task InsertTranscriptionAsync(string text)
+    {
+        if (_targetHwnd == IntPtr.Zero)
+        {
+            InsertionState = "skip (sin target)";
+            return;
+        }
+
+        InsertionState = "Pegando…";
+        try
+        {
+            var result = await _insertion.InsertIntoForegroundAsync(text, _targetHwnd).ConfigureAwait(true);
+            InsertionState = result switch
+            {
+                InsertionResult.Pasted => "✓ Pasted",
+                InsertionResult.TargetGone => "✗ TargetGone",
+                InsertionResult.Failed => "✗ Failed",
+                _ => $"? {result}",
+            };
+            _logger.LogInformation("Insertion result: {Result} into {Hwnd}", result, _targetHwnd);
+        }
+        catch (Exception ex)
+        {
+            InsertionState = $"✗ {ex.GetType().Name}";
+            _logger.LogError(ex, "Insertion lanzó excepción inesperada");
         }
     }
 

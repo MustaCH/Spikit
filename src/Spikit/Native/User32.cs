@@ -37,6 +37,12 @@ internal static class User32
     // Lo usamos para detectar release en push-to-talk (RegisterHotKey solo emite al press).
     [DllImport(Dll)]
     public static extern short GetAsyncKeyState(int vKey);
+
+    // Verifica si un HWND identifica una ventana viva. Lo usamos para detectar
+    // TargetGone antes de intentar paste (CB-6 — la app target se cerró durante la sesión).
+    [DllImport(Dll)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hWnd);
 }
 
 // Subset de Win32 virtual-key codes que necesitamos en V1. Agregar a demanda.

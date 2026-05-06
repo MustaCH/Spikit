@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Spikit — Transcription smoke test"
-        Height="640" Width="640"
+        Title="Spikit — Pipeline smoke test"
+        Height="720" Width="640"
         Background="{DynamicResource SpkBgCanvasBrush}">
     <Grid Margin="32">
         <Grid.RowDefinitions>
@@ -18,10 +18,11 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Transcription smoke test"
+                   Text="Pipeline smoke test"
                    FontSize="20" FontWeight="SemiBold"
                    Foreground="{DynamicResource SpkFgPrimaryBrush}"
                    Margin="0,0,0,4"/>
@@ -141,10 +142,39 @@
             </ScrollViewer>
         </Border>
 
-        <TextBlock Grid.Row="8" Margin="0,12,0,0"
+        <Border Grid.Row="8" Margin="0,12,0,0"
+                Background="{DynamicResource SpkBgSurfaceBrush}"
+                CornerRadius="8" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="INSERCIÓN" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding TargetWindowDescription, StringFormat='target: {0}'}"
+                           FontFamily="Consolas, Cascadia Mono, monospace"
+                           FontSize="11"
+                           Foreground="{DynamicResource SpkFgMutedBrush}"
+                           Margin="12,0,0,0"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding InsertionState}"
+                           FontFamily="Consolas, Cascadia Mono, monospace"
+                           FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="9" Margin="0,12,0,0"
                    FontSize="11"
                    Foreground="{DynamicResource SpkFgMutedBrush}"
                    TextWrapping="Wrap"
-                   Text="Whisper API se llama después de soltar el hotkey. Costo: ~USD 0.006/min de audio. Logs en %AppData%\Spikit\logs\."/>
+                   Text="Para probar paste real: poné foco en otra app (Notepad, browser…) ANTES de apretar Ctrl+Alt+M. El texto se pegará en esa app después de soltar."/>
     </Grid>
 </Window>
