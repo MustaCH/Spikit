@@ -4,7 +4,54 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Spikit"
+        Title="Spikit — Hotkey smoke test"
         Height="320" Width="560"
         Background="{DynamicResource SpkBgCanvasBrush}">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="HotkeyService — smoke test"
+                   FontSize="20" FontWeight="SemiBold"
+                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                   Margin="0,0,0,4"/>
+
+        <TextBlock Grid.Row="1"
+                   FontSize="13"
+                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                   Margin="0,0,0,16">
+            <Run Text="Apretá y mantené"/>
+            <Run Text="{Binding HotkeyLabel, Mode=OneWay}" FontWeight="SemiBold"/>
+            <Run Text="— soltá cualquiera de las teclas para disparar Released."/>
+        </TextBlock>
+
+        <Border Grid.Row="2"
+                Background="{DynamicResource SpkBgSurfaceBrush}"
+                CornerRadius="8" Padding="20">
+            <TextBlock Text="{Binding HotkeyStatus}"
+                       FontSize="22" FontFamily="Consolas, Cascadia Mono, monospace"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center"/>
+        </Border>
+
+        <TextBlock Grid.Row="3" Margin="0,16,0,0"
+                   FontSize="13"
+                   Foreground="{DynamicResource SpkFgSecondaryBrush}">
+            <Run Text="Presses totales:"/>
+            <Run Text="{Binding PressCount, Mode=OneWay}" FontWeight="SemiBold"/>
+        </TextBlock>
+
+        <TextBlock Grid.Row="4" Margin="0,8,0,0"
+                   FontSize="11"
+                   Foreground="{DynamicResource SpkFgMutedBrush}"
+                   Text="Probalo desde otra app (ej: Notepad). El hotkey es global y funciona aunque esta ventana no tenga foco."
+                   TextWrapping="Wrap"/>
+    </Grid>
 </Window>

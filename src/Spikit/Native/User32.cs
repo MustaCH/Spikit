@@ -32,6 +32,46 @@ internal static class User32
     // Devuelve el thread ID dueño del HWND y, opcional, el process ID en lpdwProcessId.
     [DllImport(Dll, SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    // Estado actual de una virtual key. El bit alto (0x8000) indica que está apretada.
+    // Lo usamos para detectar release en push-to-talk (RegisterHotKey solo emite al press).
+    [DllImport(Dll)]
+    public static extern short GetAsyncKeyState(int vKey);
+}
+
+// Subset de Win32 virtual-key codes que necesitamos en V1. Agregar a demanda.
+public static class VirtualKeys
+{
+    public const uint Shift = 0x10;
+    public const uint Control = 0x11;
+    public const uint Alt = 0x12;       // VK_MENU
+    public const uint LWin = 0x5B;
+    public const uint RWin = 0x5C;
+    public const uint Space = 0x20;
+    public const uint Escape = 0x1B;
+    public const uint Enter = 0x0D;
+    public const uint Tab = 0x09;
+    public const uint Back = 0x08;
+    public const uint M = 0x4D;
+
+    public static string GetName(uint vk) => vk switch
+    {
+        Space => "Space",
+        Escape => "Esc",
+        Enter => "Enter",
+        Tab => "Tab",
+        Back => "Backspace",
+        >= 0x30 and <= 0x39 => ((char)vk).ToString(),                   // 0-9
+        >= 0x41 and <= 0x5A => ((char)vk).ToString(),                   // A-Z
+        >= 0x70 and <= 0x87 => $"F{vk - 0x6F}",                         // F1-F24
+        _ => $"VK_{vk:X2}",
+    };
+}
+
+// Mensaje destinado a una message-only window (HWND_MESSAGE).
+internal static class SpecialWindowHandles
+{
+    public static readonly IntPtr HWND_MESSAGE = new(-3);
 }
 
 // Tipo de evento sintético para SendInput.
@@ -69,8 +109,9 @@ internal enum MouseEventF : uint
 }
 
 // Modificadores aceptados por RegisterHotKey.fsModifiers.
+// Public porque HotkeyDefinition (Models/) lo expone — son flags estables, sin leak de P/Invoke.
 [Flags]
-internal enum HotkeyModifiers : uint
+public enum HotkeyModifiers : uint
 {
     None = 0x0000,
     Alt = 0x0001,
