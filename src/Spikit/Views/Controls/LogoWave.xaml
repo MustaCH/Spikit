@@ -1,0 +1,41 @@
+<UserControl x:Class="Spikit.Views.Controls.LogoWave"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="22">
+    <StackPanel x:Name="BarsRoot" Orientation="Horizontal"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Rectangle x:Name="Bar0"
+                   VerticalAlignment="Center"
+                   Width="4" Height="6"
+                   RadiusX="2" RadiusY="2"
+                   Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                   Margin="0,0,2,0"/>
+        <Rectangle x:Name="Bar1"
+                   VerticalAlignment="Center"
+                   Width="4" Height="10"
+                   RadiusX="2" RadiusY="2"
+                   Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                   Margin="0,0,2,0"/>
+        <Rectangle x:Name="Bar2"
+                   VerticalAlignment="Center"
+                   Width="4" Height="14"
+                   RadiusX="2" RadiusY="2"
+                   Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                   Margin="0,0,0,0"/>
+        <!-- Chevron usado solo en modo Logo. Margin positivo = gap visible con la 3ª barra
+             (no superpuesto). Centered vertical = mismo eje que las barras. -->
+        <Path x:Name="Chevron"
+              Visibility="Collapsed"
+              Width="14" Height="22"
+              Margin="2,0,0,0"
+              Stretch="None"
+              Fill="{x:Null}"
+              VerticalAlignment="Center"
+              Stroke="{DynamicResource SpkBgBrandSolidBrush}"
+              StrokeThickness="3.5"
+              StrokeLineJoin="Round"
+              StrokeStartLineCap="Round"
+              StrokeEndLineCap="Round"
+              Data="M 2,4 L 11,11 L 2,18"/>
+    </StackPanel>
+</UserControl>

@@ -43,6 +43,23 @@ internal static class User32
     [DllImport(Dll)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindow(IntPtr hWnd);
+
+    // Lee y escribe el extended window style (GWL_EXSTYLE = -20). Lo usamos para
+    // setear WS_EX_NOACTIVATE + WS_EX_TRANSPARENT en la DictationPillWindow para
+    // que no robe foco al mostrarse y los clicks pasen al contenido debajo.
+    [DllImport(Dll, EntryPoint = "GetWindowLongW")]
+    public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport(Dll, EntryPoint = "SetWindowLongW")]
+    public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+}
+
+internal static class WindowExStyles
+{
+    public const int GWL_EXSTYLE = -20;
+    public const int WS_EX_TRANSPARENT = 0x00000020;
+    public const int WS_EX_TOOLWINDOW = 0x00000080;
+    public const int WS_EX_NOACTIVATE = 0x08000000;
 }
 
 // Subset de Win32 virtual-key codes que necesitamos en V1. Agregar a demanda.

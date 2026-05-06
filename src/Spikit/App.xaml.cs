@@ -40,6 +40,11 @@ public partial class App : Application
         // captura Dispatcher.CurrentDispatcher correctamente y el hotkey global se registre.
         if (!_cliArgs.DiagnosticsPoc)
         {
+            // La pill flotante se muestra primero (off-screen, modo Hidden) para que esté
+            // pre-cargada al primer press y la animación de entrada arranque sin hiccup.
+            var pill = _host.Services.GetRequiredService<DictationPillWindow>();
+            pill.Show();
+
             _host.Services.GetRequiredService<DictationOrchestrator>().Start();
         }
 

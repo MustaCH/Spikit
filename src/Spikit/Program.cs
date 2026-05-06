@@ -41,6 +41,8 @@ public static class Program
                     services.AddSingleton<App>();
                     services.AddSingleton<MainWindow>();
                     services.AddSingleton<MainWindowViewModel>();
+                    services.AddSingleton<DictationPillWindow>();
+                    services.AddSingleton<DictationPillViewModel>();
 
                     // Herramienta de diagnóstico EP-1 accesible vía --diagnostics-poc. Ver ADR-0003.
                     services.AddSingleton<PocLatencyWindow>();
