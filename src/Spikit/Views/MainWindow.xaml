@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Spikit — Pipeline smoke test"
-        Height="720" Width="640"
+        Title="Spikit"
+        Height="520" Width="600"
         Background="{DynamicResource SpkBgCanvasBrush}">
     <Grid Margin="32">
         <Grid.RowDefinitions>
@@ -13,128 +13,67 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Pipeline smoke test"
-                   FontSize="20" FontWeight="SemiBold"
+                   Text="Spikit"
+                   FontSize="22" FontWeight="SemiBold"
                    Foreground="{DynamicResource SpkFgPrimaryBrush}"
                    Margin="0,0,0,4"/>
 
         <TextBlock Grid.Row="1"
                    FontSize="13"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,16">
-            <Run Text="Mantené"/>
-            <Run Text="{Binding HotkeyLabel, Mode=OneWay}" FontWeight="SemiBold"/>
-            <Run Text="apretado, hablá, soltá. Whisper API procesa el audio post-stop."/>
-        </TextBlock>
+                   Margin="0,0,0,20"
+                   Text="Esta ventana es debug del orchestrator. La pill real llega en la sub-task #6."/>
 
         <Border Grid.Row="2"
                 Background="{DynamicResource SpkBgSurfaceBrush}"
-                CornerRadius="8" Padding="16,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           Text="{Binding HotkeyStatus}"
-                           FontFamily="Consolas, Cascadia Mono, monospace"
-                           FontSize="14"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"/>
-                <Border Grid.Column="1"
-                        Background="{DynamicResource SpkBgElevatedBrush}"
-                        CornerRadius="4" Padding="8,4">
-                    <TextBlock Text="{Binding AudioState, StringFormat='audio: {0}'}"
-                               FontFamily="Consolas, Cascadia Mono, monospace"
-                               FontSize="12"
-                               Foreground="{DynamicResource SpkFgSecondaryBrush}"/>
-                </Border>
-            </Grid>
+                CornerRadius="8" Padding="20">
+            <StackPanel>
+                <TextBlock Text="ESTADO" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           Margin="0,0,0,8"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding PillMessage}"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource SpkBgElevatedBrush}"
+                            CornerRadius="4" Padding="8,4"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding State}"
+                                   FontFamily="Consolas, Cascadia Mono, monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"/>
+                    </Border>
+                </Grid>
+                <TextBlock Margin="0,12,0,0"
+                           FontSize="11"
+                           Foreground="{DynamicResource SpkFgMutedBrush}"
+                           Text="{Binding SessionCount, StringFormat='Sesiones: {0}'}"/>
+            </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="3" Margin="0,16,0,6"
+        <TextBlock Grid.Row="3" Margin="0,20,0,8"
                    FontSize="11" FontWeight="SemiBold"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Text="RMS LEVEL"/>
-        <ProgressBar Grid.Row="4"
-                     Minimum="0" Maximum="1"
-                     Value="{Binding RmsLevel, Mode=OneWay}"
-                     Height="10"
-                     Foreground="{DynamicResource SpkBgBrandSolidBrush}"
-                     Background="{DynamicResource SpkBgMutedBrush}"
-                     BorderThickness="0"/>
+                   Text="ÚLTIMA TRANSCRIPCIÓN"/>
 
-        <Border Grid.Row="5"
-                Margin="0,20,0,0"
-                Background="{DynamicResource SpkBgSurfaceBrush}"
-                CornerRadius="8" Padding="16">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Presses" FontSize="11"
-                               Foreground="{DynamicResource SpkFgMutedBrush}"/>
-                    <TextBlock Text="{Binding PressCount}"
-                               FontSize="20" FontWeight="SemiBold"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="Samples" FontSize="11"
-                               Foreground="{DynamicResource SpkFgMutedBrush}"/>
-                    <TextBlock Text="{Binding SamplesInSession, StringFormat='{}{0:N0}'}"
-                               FontSize="20" FontWeight="SemiBold"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Duración" FontSize="11"
-                               Foreground="{DynamicResource SpkFgMutedBrush}"/>
-                    <TextBlock Text="{Binding SessionDurationMs, StringFormat='{}{0:N0} ms'}"
-                               FontSize="20" FontWeight="SemiBold"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <Grid Grid.Row="6" Margin="0,20,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="TRANSCRIPCIÓN" FontSize="11" FontWeight="SemiBold"
-                       Foreground="{DynamicResource SpkFgSecondaryBrush}"/>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <TextBlock Text="{Binding TranscriptionState}"
-                           FontFamily="Consolas, Cascadia Mono, monospace"
-                           FontSize="11"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,12,0"/>
-                <TextBlock Text="{Binding TranscriptionDurationMs, StringFormat='{}{0} ms'}"
-                           FontFamily="Consolas, Cascadia Mono, monospace"
-                           FontSize="11"
-                           Foreground="{DynamicResource SpkFgMutedBrush}"/>
-            </StackPanel>
-        </Grid>
-
-        <Border Grid.Row="7"
-                Margin="0,8,0,0"
+        <Border Grid.Row="4"
                 Background="{DynamicResource SpkBgSurfaceBrush}"
                 CornerRadius="8" Padding="16">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <TextBlock Text="{Binding TranscribedText}"
+                <TextBlock Text="{Binding LastTranscription}"
                            FontSize="14"
                            Foreground="{DynamicResource SpkFgPrimaryBrush}"
                            TextWrapping="Wrap"
@@ -142,39 +81,10 @@
             </ScrollViewer>
         </Border>
 
-        <Border Grid.Row="8" Margin="0,12,0,0"
-                Background="{DynamicResource SpkBgSurfaceBrush}"
-                CornerRadius="8" Padding="16,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           Text="INSERCIÓN" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding TargetWindowDescription, StringFormat='target: {0}'}"
-                           FontFamily="Consolas, Cascadia Mono, monospace"
-                           FontSize="11"
-                           Foreground="{DynamicResource SpkFgMutedBrush}"
-                           Margin="12,0,0,0"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="2"
-                           Text="{Binding InsertionState}"
-                           FontFamily="Consolas, Cascadia Mono, monospace"
-                           FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
-
-        <TextBlock Grid.Row="9" Margin="0,12,0,0"
+        <TextBlock Grid.Row="5" Margin="0,12,0,0"
                    FontSize="11"
                    Foreground="{DynamicResource SpkFgMutedBrush}"
                    TextWrapping="Wrap"
-                   Text="Para probar paste real: poné foco en otra app (Notepad, browser…) ANTES de apretar Ctrl+Alt+M. El texto se pegará en esa app después de soltar."/>
+                   Text="Para probar paste real: poné foco en otra app antes de apretar Ctrl+Alt+M. Logs en %AppData%\Spikit\logs\."/>
     </Grid>
 </Window>

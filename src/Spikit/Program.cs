@@ -65,6 +65,9 @@ public static class Program
                     services.AddSingleton<ITextInsertionService, ClipboardPasteService>();
                     services.AddSingleton<ISettingsService, JsonSettingsService>();
                     services.AddSingleton<ISecretStore, DpapiSecretStore>();
+
+                    // Stub hasta sub-task #7 (FloatingResultWindow).
+                    services.AddSingleton<IFloatingResultPresenter, LoggingFloatingResultPresenter>();
                     services.AddSingleton<DictationOrchestrator>();
                 })
                 .Build();
