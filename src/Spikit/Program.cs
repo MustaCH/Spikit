@@ -68,8 +68,9 @@ public static class Program
                     services.AddSingleton<ISettingsService, JsonSettingsService>();
                     services.AddSingleton<ISecretStore, DpapiSecretStore>();
 
-                    // Stub hasta sub-task #7 (FloatingResultWindow).
-                    services.AddSingleton<IFloatingResultPresenter, LoggingFloatingResultPresenter>();
+                    // FloatingResultViewModel es transient: una instancia nueva por window.
+                    services.AddTransient<FloatingResultViewModel>();
+                    services.AddSingleton<IFloatingResultPresenter, WpfFloatingResultPresenter>();
                     services.AddSingleton<DictationOrchestrator>();
                 })
                 .Build();
