@@ -9,6 +9,7 @@ using Spikit.Services.Audio;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Orchestration;
+using Spikit.Services.Provider;
 using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
@@ -77,6 +78,10 @@ public static class Program
                     services.AddSingleton<ITextInsertionService, ClipboardPasteService>();
                     services.AddSingleton<ISettingsService, JsonSettingsService>();
                     services.AddSingleton<ISecretStore, DpapiSecretStore>();
+
+                    // Tester reusable: onboarding (EP-3.3) y Settings → Provider (EP-4)
+                    // comparten la misma lógica de "GET /models con Bearer key".
+                    services.AddHttpClient<IProviderConnectionTester, HttpProviderConnectionTester>();
 
                     // FloatingResultViewModel es transient: una instancia nueva por window.
                     services.AddTransient<FloatingResultViewModel>();

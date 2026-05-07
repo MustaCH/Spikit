@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Interop;
+using Spikit.Native;
 using Spikit.ViewModels.Onboarding;
 
 namespace Spikit.Views.Onboarding;
@@ -15,6 +17,18 @@ public partial class OnboardingWindow : Window
         DataContext = viewModel;
 
         _viewModel.OnboardingCompleted += OnOnboardingCompleted;
+    }
+
+    // Bordes redondeados nativos en Windows 11 (DwmSetWindowAttribute con CornerPreference=Round).
+    // En Win10 el atributo se ignora silenciosamente y los bordes quedan square — Spikit
+    // está targeteado a Win11+ así que no hay fallback intencional. OnSourceInitialized es el
+    // momento correcto: el HWND existe pero la window todavía no se mostró.
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var hwnd = new WindowInteropHelper(this).Handle;
+        int pref = (int)DwmWindowCornerPreference.Round;
+        Dwmapi.DwmSetWindowAttribute(hwnd, DwmWindowAttribute.WindowCornerPreference, ref pref, sizeof(int));
     }
 
     // Alt+F4 (o cualquier intento de cerrar antes de terminar) confirma con el usuario.
@@ -49,4 +63,8 @@ public partial class OnboardingWindow : Window
         // ve IsCompleted=true y deja pasar sin confirm.
         Close();
     }
+
+    // El ✕ del title bar custom dispara Close, que pasa por OnClosing — ahí está la
+    // lógica de confirmación si el onboarding no terminó (RN-5).
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 }

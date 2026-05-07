@@ -26,6 +26,11 @@ public sealed class OnboardingViewModel : ViewModelBase
         _logger = logger;
         Provider = provider;
 
+        // Suscripción al evento del Provider VM: cuando cambia el estado de conexión
+        // (Ok/Error/Testing/Idle), recomputamos CanGoNext y notificamos al CommandManager
+        // para que el botón "Siguiente" se enable/disable.
+        Provider.ConnectionStateChanged += OnProviderConnectionStateChanged;
+
         GoNextCommand = new RelayCommand(GoNext, () => CanGoNext);
         GoBackCommand = new RelayCommand(GoBack, () => CanGoBack);
         SkipCommand = new RelayCommand(Skip, () => IsSkipVisible);
@@ -34,6 +39,12 @@ public sealed class OnboardingViewModel : ViewModelBase
     // VMs por paso, expuestos como propiedades para que cada UserControl haga
     // DataContext="{Binding Provider}" en el OnboardingWindow.
     public ProviderStepViewModel Provider { get; }
+
+    private void OnProviderConnectionStateChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(CanGoNext));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+    }
 
     // Disparado cuando el usuario llega al final del wizard (Finalizar o Saltar en Prueba).
     // El consumer (Window) decide si cerrar la ventana, persistir el flag onboardingCompleted, etc.
@@ -113,10 +124,14 @@ public sealed class OnboardingViewModel : ViewModelBase
         _ => "Siguiente",
     };
 
-    // Sub-tasks #2/#5/#7 van a inyectar la condición real por paso (provider verificado,
-    // hotkey registrada, prueba con texto). Por ahora el shell siempre permite avanzar
-    // para que se pueda probar la navegación.
-    public bool CanGoNext => true;
+    // CanGoNext por paso. Welcome y Hotkey/Prueba siguen siendo `true` hasta que sus
+    // sub-tasks (EP-3.5/3.7) los cablean. Provider exige IsConnectionOk del paso 1.1
+    // (EP-3.3 cierra ese requisito).
+    public bool CanGoNext => CurrentStep switch
+    {
+        OnboardingStep.Provider => Provider.IsConnectionOk,
+        _ => true,
+    };
 
     public bool CanGoBack => IsBackVisible;
 

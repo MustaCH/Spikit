@@ -266,6 +266,43 @@
             </Setter>
         </Style>
 
+        <!-- Botón secundario para "Probar conexión". Estilo más liviano que el primary del footer. -->
+        <Style x:Key="TestConnectionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}"/>
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.45"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Botón ojo (toggle visibility de API key) inline a la derecha del input. -->
         <Style x:Key="EyeToggleStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -305,78 +342,414 @@
                            Margin="0,0,0,24"
                            Text="Recomendados: Groq por velocidad, OpenAI por calidad. Cualquier endpoint compatible con la API de OpenAI Whisper funciona."/>
 
-                <!-- Preset -->
+                <!-- Preset: ItemTemplate con logo real (OpenAI / Groq) o placeholder
+                     (círculo + inicial) para Custom. Reemplaza al DisplayMemberPath. -->
                 <TextBlock Text="Preset" Style="{StaticResource FieldLabelStyle}"/>
                 <ComboBox Style="{StaticResource SpkComboBoxStyle}"
                           ItemsSource="{Binding Presets}"
-                          DisplayMemberPath="Label"
                           SelectedValuePath="Value"
                           SelectedValue="{Binding SelectedPreset}"
                           IsEnabled="{Binding IsNotBusyTesting}"
-                          Margin="0,0,0,16"/>
+                          Margin="0,0,0,16">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <!-- Slot del logo (22×22). Image real superpuesta sobre el
+                                     placeholder; cuál se ve depende del DataTrigger sobre Value. -->
+                                <Grid Width="22" Height="22" Margin="0,0,10,0">
+                                    <!-- Imagen real para presets con asset cargado.
+                                         Groq lleva Clip elíptico para volverlo circular (su PNG
+                                         original es un cuadrado naranja) y un Margin de 2px
+                                         para igualar el peso visual al de OpenAI (cuyo símbolo
+                                         ya respira naturalmente dentro de su slot 22×22).
+                                         Clip se define en coords del Image renderizado: con
+                                         Margin=2 sobre el slot 22×22, la imagen mide 18×18 → centro 9,9, radio 9. -->
+                                    <Image Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Value}" Value="OpenAI">
+                                                        <Setter Property="Source" Value="pack://application:,,,/Resources/Brand/openai.png"/>
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Value}" Value="Groq">
+                                                        <Setter Property="Source" Value="pack://application:,,,/Resources/Brand/groq.png"/>
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Setter Property="Margin" Value="2"/>
+                                                        <Setter Property="Clip">
+                                                            <Setter.Value>
+                                                                <EllipseGeometry Center="9,9" RadiusX="9" RadiusY="9"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
 
-                <!-- Base URL -->
-                <TextBlock Text="Base URL" Style="{StaticResource FieldLabelStyle}"/>
-                <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
-                         Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                         IsEnabled="{Binding IsNotBusyTesting}"
-                         Margin="0,0,0,16"/>
+                                    <!-- Placeholder círculo + inicial: solo Custom hoy. -->
+                                    <Border CornerRadius="11"
+                                            Background="{DynamicResource SpkBgElevatedBrush}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Value}" Value="Custom">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="+"
+                                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                                   FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Label}"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource SpkFontGeist}"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
-                <!-- API key + toggle 👁 -->
-                <TextBlock Text="API key" Style="{StaticResource FieldLabelStyle}"/>
-                <Grid Margin="0,0,0,4">
+                <!-- Base URL: visible solo en Custom. Para OpenAI/Groq la URL es fija y conocida,
+                     mostrarla agrega ruido. Si el usuario quiere overridear la URL queda en
+                     Custom (el degradado automático ya lo lleva ahí cuando edita a mano). -->
+                <StackPanel Visibility="{Binding IsCustomPreset, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Base URL" Style="{StaticResource FieldLabelStyle}"/>
+                    <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
+                             Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsNotBusyTesting}"
+                             Margin="0,0,0,16"/>
+                </StackPanel>
+
+                <!-- API key (col izq, ratio 1.5*) + Modelo (col der, ratio 1*) lado a lado.
+                     Da ~60/40 sobre el ancho útil. Modelo es un identificador corto
+                     ("whisper-1", "whisper-large-v3"); 40% le sobra. -->
+                <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*"/>
+                        <ColumnDefinition Width="14"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <PasswordBox x:Name="ApiKeyPasswordBox"
-                                 Grid.Column="0"
-                                 Style="{StaticResource SpkPasswordBoxStyle}"
-                                 PasswordChanged="ApiKeyPasswordBox_PasswordChanged"
-                                 IsEnabled="{Binding IsNotBusyTesting}"
-                                 Visibility="{Binding IsApiKeyHidden, Converter={StaticResource BoolToVis}}"/>
+                    <!-- API key block -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="API key" Style="{StaticResource FieldLabelStyle}"/>
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                    <TextBox x:Name="ApiKeyTextBox"
-                             Grid.Column="0"
-                             Style="{StaticResource SpkTextBoxMonoStyle}"
-                             Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
-                             IsEnabled="{Binding IsNotBusyTesting}"
-                             Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
+                            <PasswordBox x:Name="ApiKeyPasswordBox"
+                                         Grid.Column="0"
+                                         Style="{StaticResource SpkPasswordBoxStyle}"
+                                         PasswordChanged="ApiKeyPasswordBox_PasswordChanged"
+                                         IsEnabled="{Binding IsNotBusyTesting}"
+                                         Visibility="{Binding IsApiKeyHidden, Converter={StaticResource BoolToVis}}"/>
 
-                    <Button Grid.Column="1"
-                            Style="{StaticResource EyeToggleStyle}"
-                            Margin="6,0,0,0"
-                            Click="ToggleApiKeyVisibility_Click"
-                            ToolTip="Mostrar/ocultar API key">
-                        <!-- Glyph fallback: cuando el toggle está hidden mostramos un ojo, abierto un ojo tachado. -->
+                            <TextBox x:Name="ApiKeyTextBox"
+                                     Grid.Column="0"
+                                     Style="{StaticResource SpkTextBoxMonoStyle}"
+                                     Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding IsNotBusyTesting}"
+                                     Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
+
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource EyeToggleStyle}"
+                                    Margin="6,0,0,0"
+                                    Click="ToggleApiKeyVisibility_Click"
+                                    ToolTip="Mostrar/ocultar API key">
+                                <TextBlock>
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="👁"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsApiKeyVisible}" Value="True">
+                                                    <Setter Property="Text" Value="—"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Button>
+                        </Grid>
+
+                        <!-- Helper / error / warning de API key. Tres TextBlocks superpuestos
+                             en un Grid; uno solo es visible a la vez según HasApiKeyError /
+                             HasApiKeyWarning. -->
+                        <Grid Margin="0,2,0,0">
+                            <TextBlock Text="Tu key se guarda cifrada con Windows DPAPI."
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource HelperTextStyle}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasApiKeyError}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding HasApiKeyWarning}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock Text="{Binding ApiKeyHardError}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding HasApiKeyError, Converter={StaticResource BoolToVis}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                                        <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock Text="{Binding ApiKeySoftWarning}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding HasApiKeyWarning, Converter={StaticResource BoolToVis}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                                        <Setter Property="Foreground" Value="{DynamicResource SpkStateWarningFgBrush}"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Modelo block.
+                         OpenAI / Groq → ComboBox con AvailableModels (no editable).
+                         Custom        → TextBox libre (no podemos predecir qué modelo trae el endpoint).
+                         Los dos controles superpuestos en un Grid; visibilidad por IsCustomPreset. -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Modelo" Style="{StaticResource FieldLabelStyle}"/>
+                        <Grid Margin="0,0,0,4">
+                            <ComboBox ItemsSource="{Binding AvailableModels}"
+                                      SelectedItem="{Binding Model}"
+                                      IsEnabled="{Binding IsNotBusyTesting}"
+                                      FontFamily="{DynamicResource SpkFontGeistMono}"
+                                      FontSize="13">
+                                <ComboBox.Style>
+                                    <Style TargetType="ComboBox" BasedOn="{StaticResource SpkComboBoxStyle}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCustomPreset}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.Style>
+                            </ComboBox>
+
+                            <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
+                                     Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding IsNotBusyTesting}"
+                                     Visibility="{Binding IsCustomPreset, Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
+                        <TextBlock Margin="0,2,0,0" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource HelperTextStyle}">
+                                    <Setter Property="Text" Value="Elegí el modelo de tu provider."/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCustomPreset}" Value="True">
+                                            <Setter Property="Text" Value="Modelo Whisper-compatible de tu endpoint."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Probar conexión + InlineStatus a la derecha. design-system §9.9. -->
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Style="{StaticResource TestConnectionButtonStyle}"
+                            Command="{Binding TestConnectionCommand}"
+                            MinWidth="160">
                         <TextBlock>
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="👁"/>
+                                    <Setter Property="Text" Value="Probar conexión"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsApiKeyVisible}" Value="True">
-                                            <Setter Property="Text" Value="—"/>
+                                        <DataTrigger Binding="{Binding IsBusyTesting}" Value="True">
+                                            <Setter Property="Text" Value="Probando…"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
                     </Button>
-                </Grid>
-                <TextBlock Style="{StaticResource HelperTextStyle}"
-                           Margin="0,2,0,16"
-                           Text="Tu key se guarda cifrada con Windows DPAPI."/>
 
-                <!-- Modelo -->
-                <TextBlock Text="Modelo" Style="{StaticResource FieldLabelStyle}"/>
-                <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
-                         Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
-                         IsEnabled="{Binding IsNotBusyTesting}"
-                         Margin="0,0,0,4"/>
-                <TextBlock Style="{StaticResource HelperTextStyle}"
-                           Margin="0,2,0,0"
-                           Text="El nombre del modelo Whisper-compatible que usa tu provider."/>
+                    <!-- InlineStatus animado: el container hace pop/fade al entrar a un estado.
+                         Cada ConnectionStatus tiene su propio storyboard de entrada:
+                           Testing → fade + scale-in suave + spin del icono ⟳.
+                           Ok      → pop bouncy (BackEase overshoot, scale 0.6→1).
+                           Error   → fade + shake horizontal corto. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="14,0,0,0"
+                                VerticalAlignment="Center"
+                                Opacity="0"
+                                RenderTransformOrigin="0,0.5"
+                                Visibility="{Binding IsConnectionStatusVisible, Converter={StaticResource BoolToVis}}">
+                        <StackPanel.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform ScaleX="0.85" ScaleY="0.85"/>
+                                <TranslateTransform X="0"/>
+                            </TransformGroup>
+                        </StackPanel.RenderTransform>
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ConnectionStatus}" Value="Testing">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     From="0" To="1" Duration="0:0:0.24"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                                     From="0.92" To="1" Duration="0:0:0.24">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                                     From="0.92" To="1" Duration="0:0:0.24">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ConnectionStatus}" Value="Ok">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     From="0" To="1" Duration="0:0:0.36"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                                     From="0.6" To="1" Duration="0:0:0.42">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <BackEase EasingMode="EaseOut" Amplitude="0.45"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                                     From="0.6" To="1" Duration="0:0:0.42">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <BackEase EasingMode="EaseOut" Amplitude="0.45"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ConnectionStatus}" Value="Error">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     From="0" To="1" Duration="0:0:0.28"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                                     From="0.92" To="1" Duration="0:0:0.28"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                                     From="0.92" To="1" Duration="0:0:0.28"/>
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.X)">
+                                                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                                                        <LinearDoubleKeyFrame KeyTime="0:0:0.06" Value="-6"/>
+                                                        <LinearDoubleKeyFrame KeyTime="0:0:0.12" Value="6"/>
+                                                        <LinearDoubleKeyFrame KeyTime="0:0:0.18" Value="-3"/>
+                                                        <LinearDoubleKeyFrame KeyTime="0:0:0.24" Value="0"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <!-- Icono: glyph + RotateTransform. El RotateTransform se anima en loop
+                             solo durante Testing; en Ok/Error queda en 0. -->
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="14"
+                                   Margin="0,0,6,0"
+                                   RenderTransformOrigin="0.5,0.5">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform Angle="0"/>
+                            </TextBlock.RenderTransform>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ConnectionStatus}" Value="Testing">
+                                            <Setter Property="Text" Value="⟳"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="SpinIconStoryboard">
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                         From="0" To="360"
+                                                                         Duration="0:0:1.2"
+                                                                         RepeatBehavior="Forever"/>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="SpinIconStoryboard"/>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ConnectionStatus}" Value="Ok">
+                                            <Setter Property="Text" Value="✓"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ConnectionStatus}" Value="Error">
+                                            <Setter Property="Text" Value="✗"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="13"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ConnectionStatus}" Value="Ok">
+                                            <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ConnectionStatus}" Value="Error">
+                                            <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            <Run Text="{Binding ConnectionMessage, Mode=OneWay}"/>
+                            <Run Text="{Binding ConnectionTestedAtFormatted, Mode=OneWay, StringFormat=' · {0}'}">
+                                <Run.Style>
+                                    <Style TargetType="Run">
+                                        <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}"/>
+                                    </Style>
+                                </Run.Style>
+                            </Run>
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>

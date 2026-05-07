@@ -14,6 +14,9 @@
                 <ResourceDictionary Source="Resources/Themes/Spacing.xaml" />
                 <ResourceDictionary Source="Resources/Themes/Radius.xaml" />
                 <ResourceDictionary Source="Resources/Themes/Motion.xaml" />
+
+                <!-- Componentes globales (style implícito → afectan a todos los controles del tipo). -->
+                <ResourceDictionary Source="Resources/Themes/Components/ScrollBar.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
