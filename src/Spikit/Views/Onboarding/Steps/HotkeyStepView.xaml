@@ -177,6 +177,20 @@
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </RadioButton>
+
+                <!-- Save error inline (EP-3.6): visible solo si SaveAsync falló al avanzar al
+                     paso 3. Los dos motivos son CB-7 (combinación en uso por otra app) y
+                     fallo de JsonSettings; el VM ya da el mensaje correcto en cada caso. -->
+                <TextBlock Text="{Binding SaveError}"
+                           TextWrapping="Wrap"
+                           Margin="0,12,0,0"
+                           Visibility="{Binding HasSaveError, Converter={StaticResource BoolToVis}}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}"/>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </ScrollViewer>
     </Grid>

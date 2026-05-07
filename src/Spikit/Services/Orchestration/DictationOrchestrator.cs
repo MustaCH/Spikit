@@ -31,6 +31,7 @@ public sealed class DictationOrchestrator : IDisposable
     private readonly object _bufferLock = new();
 
     private DictationState _state = DictationState.Idle;
+    private HotkeyMode _mode = HotkeyMode.PushToTalk;
     private IntPtr _targetHwnd;
     private CancellationTokenSource? _recordingTimeoutCts;
     private bool _started;
@@ -55,6 +56,18 @@ public sealed class DictationOrchestrator : IDisposable
 
     public DictationState State => _state;
 
+    // Modo del hotkey (PTT default V1 / Toggle). Se lee al recibir HotkeyPressed/Released
+    // para decidir el comportamiento. Mutado vía SetMode desde HotkeyConfigWriter cuando
+    // el usuario cambia el modo en onboarding (EP-3.6) o Settings (EP-4 futuro).
+    public HotkeyMode Mode => _mode;
+
+    public void SetMode(HotkeyMode mode)
+    {
+        if (_mode == mode) return;
+        _mode = mode;
+        _logger.LogInformation("Dictation mode → {Mode}", mode);
+    }
+
     // Disparado en cada transición de estado. La pill se suscribe acá para refrescar visual.
     public event EventHandler<DictationState>? StateChanged;
 
@@ -72,20 +85,12 @@ public sealed class DictationOrchestrator : IDisposable
         if (_started) return;
         _started = true;
 
+        // Subscripción a los eventos del hotkey + audio. EL REGISTRO DEL HOTKEY NO SE
+        // HACE ACÁ — desde EP-3.6 lo dispara el bootstrap (Program.cs) leyendo settings,
+        // o el HotkeyConfigWriter cuando el usuario cambia la combinación.
         _hotkey.HotkeyPressed += OnHotkeyPressed;
         _hotkey.HotkeyReleased += OnHotkeyReleased;
         _audio.SamplesAvailable += OnSamplesAvailable;
-
-        try
-        {
-            _hotkey.Register(HotkeyDefinition.Default);
-            EmitPillMessage($"Apretá {HotkeyDefinition.Default} para dictar");
-        }
-        catch (HotkeyRegistrationException ex)
-        {
-            _logger.LogError(ex, "No se pudo registrar el hotkey al iniciar el orchestrator");
-            EmitPillMessage($"⚠ {ex.Message}");
-        }
     }
 
     public void Stop()
@@ -97,7 +102,9 @@ public sealed class DictationOrchestrator : IDisposable
         _hotkey.HotkeyReleased -= OnHotkeyReleased;
         _audio.SamplesAvailable -= OnSamplesAvailable;
 
-        try { _hotkey.Unregister(); } catch { /* tragado: shutdown */ }
+        // El hotkey lo libera el dueño del registro: HotkeyService.Dispose en App.OnExit
+        // ya hace cleanup. No tocamos Unregister acá para no pisar el state si la app
+        // sigue viva pero el orchestrator fue Stop()-eado por algún motivo.
     }
 
     public void Dispose()
@@ -109,10 +116,19 @@ public sealed class DictationOrchestrator : IDisposable
         _recordingTimeoutCts?.Dispose();
     }
 
-    private void OnHotkeyPressed(object? sender, EventArgs e)
+    private async void OnHotkeyPressed(object? sender, EventArgs e)
     {
-        // RN-6: en estado activo (Recording/Transcribing/Inserting/ShowingFloatingResult),
-        // ignoramos nuevos press. Cancelación queda para EP-5.
+        // Toggle (V1 nuevo, EP-3.6): segundo press mientras estamos Recording = stop.
+        // El primer press en estado Idle cae al flujo normal abajo.
+        if (_mode == HotkeyMode.Toggle && _state == DictationState.Recording)
+        {
+            _logger.LogDebug("Toggle: segundo press en Recording → end session");
+            await EndSessionAsync(reason: null).ConfigureAwait(true);
+            return;
+        }
+
+        // RN-6: en cualquier estado activo distinto de Recording (Transcribing/Inserting/
+        // ShowingFloatingResult), ignoramos nuevos press. Cancelación queda para EP-5.
         if (_state != DictationState.Idle)
         {
             _logger.LogDebug("HotkeyPressed ignorado, estado actual: {State} (RN-6)", _state);
@@ -165,6 +181,13 @@ public sealed class DictationOrchestrator : IDisposable
 
     private async void OnHotkeyReleased(object? sender, EventArgs e)
     {
+        // Toggle (V1 nuevo, EP-3.6): el release no termina la sesión; el segundo press lo hace.
+        if (_mode == HotkeyMode.Toggle)
+        {
+            _logger.LogDebug("Toggle: HotkeyReleased ignorado (la sesión termina con el segundo press)");
+            return;
+        }
+
         if (_state != DictationState.Recording)
         {
             _logger.LogDebug("HotkeyReleased ignorado, estado actual: {State}", _state);

@@ -52,10 +52,13 @@ public class DictationOrchestratorTests
     }
 
     [Fact]
-    public void Start_registers_hotkey_with_default_definition()
+    public void Start_does_not_register_hotkey_directly()
     {
+        // Desde EP-3.6 el Register lo dispara el bootstrap (App.xaml.cs leyendo settings.json)
+        // o el HotkeyConfigWriter cuando el usuario cambia la combinación. El orchestrator
+        // solo se suscribe a HotkeyPressed/Released.
         BuildAndStart();
-        _hotkey.Verify(h => h.Register(HotkeyDefinition.Default), Times.Once);
+        _hotkey.Verify(h => h.Register(It.IsAny<HotkeyDefinition>()), Times.Never);
     }
 
     [Fact]
@@ -215,6 +218,52 @@ public class DictationOrchestratorTests
         RaiseHotkeyPressed();
 
         _audio.Verify(a => a.StartAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ===== Modo Toggle (EP-3.6) =====
+
+    [Fact]
+    public async Task Toggle_mode_release_does_not_end_session()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var orchestrator = BuildAndStart();
+        orchestrator.SetMode(HotkeyMode.Toggle);
+
+        RaiseHotkeyPressed();
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+
+        // En Toggle el release NO termina la sesión — el segundo press lo hace.
+        RaiseHotkeyReleased();
+        await Task.Yield();
+
+        _audio.Verify(a => a.StopAsync(), Times.Never);
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+    }
+
+    [Fact]
+    public async Task Toggle_mode_second_press_ends_session_and_transcribes()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("toggle test");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync("toggle test", It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Pasted);
+
+        var orchestrator = BuildAndStart();
+        orchestrator.SetMode(HotkeyMode.Toggle);
+
+        RaiseHotkeyPressed(); // primer press → start
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased(); // ignorado en Toggle
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+
+        RaiseHotkeyPressed(); // segundo press → end + transcribe + insert
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _transcription.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Once);
+        _insertion.Verify(i => i.InsertIntoForegroundAsync("toggle test", It.IsAny<IntPtr>()), Times.Once);
     }
 
     private static async Task WaitForState(DictationOrchestrator orchestrator, DictationState target, int timeoutMs = 500)

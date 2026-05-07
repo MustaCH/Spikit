@@ -3,7 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Spikit.Cli;
+using Spikit.Models;
+using Spikit.Services.Hotkey;
 using Spikit.Services.Orchestration;
+using Spikit.Services.Settings;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
 using Spikit.Views.Onboarding;
@@ -52,10 +55,42 @@ public partial class App : Application
             var pill = _host.Services.GetRequiredService<DictationPillWindow>();
             pill.Show();
 
+            // Hidratar la config del hotkey desde settings.json antes de arrancar el
+            // orchestrator (EP-3.6). Si el JSON no existe / está corrupto, los defaults V1
+            // (Ctrl+Alt+M / PushToTalk) están encapsulados en HotkeySettings.
+            BootstrapHotkey();
+
             _host.Services.GetRequiredService<DictationOrchestrator>().Start();
         }
 
         base.OnStartup(e);
+    }
+
+    private void BootstrapHotkey()
+    {
+        var settings = _host.Services.GetRequiredService<ISettingsService>().Load();
+        var hotkeyService = _host.Services.GetRequiredService<IHotkeyService>();
+        var orchestrator = _host.Services.GetRequiredService<DictationOrchestrator>();
+
+        if (!settings.Hotkey.TryToRuntime(out var definition, out var mode))
+        {
+            _logger.LogWarning("settings.json tiene un bloque hotkey inválido — usando defaults V1");
+        }
+
+        orchestrator.SetMode(mode);
+
+        try
+        {
+            hotkeyService.Register(definition);
+            _logger.LogInformation("Hotkey bootstrap OK: {Hotkey} / {Mode}", definition, mode);
+        }
+        catch (HotkeyRegistrationException ex)
+        {
+            // Caso raro pero posible: la combinación persistida ya la tomó otra app.
+            // Logueamos y seguimos arrancando — el usuario va a tener que abrir Settings
+            // (post-EP-4) o re-ejecutar el onboarding para cambiarla.
+            _logger.LogError(ex, "No se pudo registrar el hotkey al bootstrap ({Hotkey})", definition);
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)

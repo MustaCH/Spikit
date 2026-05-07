@@ -60,6 +60,7 @@ public static class Program
                     services.AddTransient<HotkeyStepViewModel>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
+                    services.AddSingleton<IHotkeyConfigWriter, HotkeyConfigWriter>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
 
                     services.AddSingleton<ISettingsService, JsonSettingsService>();

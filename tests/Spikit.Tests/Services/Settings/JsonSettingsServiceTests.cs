@@ -42,6 +42,35 @@ public class JsonSettingsServiceTests : IDisposable
         Assert.Equal("openai", result.Provider.PresetId);
         Assert.Equal("https://api.openai.com/v1", result.Provider.BaseUrl);
         Assert.Equal("whisper-1", result.Provider.Model);
+        // Defaults V1 del bloque hotkey (EP-3.6).
+        // Enum.ToString() para flags ordena por valor de bit ascendente — Alt (0x1) antes
+        // que Control (0x2). El parser de TryToRuntime acepta cualquier orden.
+        Assert.NotNull(result.Hotkey);
+        Assert.Equal("Alt, Control", result.Hotkey.Modifiers);
+        Assert.Equal((uint)0x4D, result.Hotkey.VirtualKey); // 'M'
+        Assert.Equal("PushToTalk", result.Hotkey.Mode);
+    }
+
+    [Fact]
+    public void Roundtrip_preserves_hotkey_section()
+    {
+        var svc = MakeService();
+        var saved = new AppSettings
+        {
+            Hotkey = new HotkeySettings
+            {
+                Modifiers = "Control, Shift",
+                VirtualKey = 0x20,
+                Mode = "Toggle",
+            },
+        };
+
+        svc.Save(saved);
+        var loaded = svc.Load();
+
+        Assert.Equal("Control, Shift", loaded.Hotkey.Modifiers);
+        Assert.Equal((uint)0x20, loaded.Hotkey.VirtualKey);
+        Assert.Equal("Toggle", loaded.Hotkey.Mode);
     }
 
     [Fact]

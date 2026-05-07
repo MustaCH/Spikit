@@ -11,6 +11,11 @@ public interface IHotkeyService : IDisposable
     // Idempotente: llamar sin haber registrado no hace nada.
     void Unregister();
 
+    // La definición actualmente registrada, o null si nada registrado todavía. La usa
+    // HotkeyConfigWriter para hacer rollback a la combinación previa cuando un Register
+    // nuevo falla por CB-7 o cuando JsonSettings rechaza la persistencia post-Register.
+    HotkeyDefinition? CurrentRegistration { get; }
+
     // Disparado en el press completo de la combinación. Para push-to-talk, marca el
     // inicio de la sesión de captura.
     event EventHandler? HotkeyPressed;

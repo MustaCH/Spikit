@@ -130,13 +130,13 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     // CanGoNext por paso.
     //   Provider: IsConnectionOk + no estamos en medio del Save (EP-3.3 + EP-3.4).
-    //   Hotkey:   hay alguna combinación capturada (EP-3.5). Warning sin modificadora
-    //             NO bloquea — el ticket lo pide explícito.
+    //   Hotkey:   hay combinación capturada + no estamos en medio del Save (EP-3.5 + EP-3.6).
+    //             Warning sin modificadora NO bloquea — el ticket lo pide explícito.
     //   Prueba:   true hasta que EP-3.7 cablee la text box.
     public bool CanGoNext => CurrentStep switch
     {
         OnboardingStep.Provider => Provider.IsConnectionOk && !Provider.IsSaving,
-        OnboardingStep.Hotkey => Hotkey.HasHotkey,
+        OnboardingStep.Hotkey => Hotkey.HasHotkey && !Hotkey.IsSaving,
         _ => true,
     };
 
@@ -161,6 +161,14 @@ public sealed class OnboardingViewModel : ViewModelBase
         if (CurrentStep == OnboardingStep.Provider)
         {
             _ = AdvanceFromProviderAsync();
+            return;
+        }
+
+        // Mismo patrón para el paso Hotkey (EP-3.6): persistir + reconfigurar runtime
+        // antes de avanzar. CB-7 (combinación tomada) se muestra inline y no avanza.
+        if (CurrentStep == OnboardingStep.Hotkey)
+        {
+            _ = AdvanceFromHotkeyAsync();
             return;
         }
 
@@ -189,6 +197,28 @@ public sealed class OnboardingViewModel : ViewModelBase
         }
 
         CurrentStep = OnboardingStep.Hotkey;
+        _logger.LogDebug("Onboarding → {Step}", CurrentStep);
+    }
+
+    private async Task AdvanceFromHotkeyAsync()
+    {
+        if (CurrentStep != OnboardingStep.Hotkey) return;
+
+        OnPropertyChanged(nameof(CanGoNext));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+
+        var ok = await Hotkey.SaveAsync().ConfigureAwait(true);
+
+        OnPropertyChanged(nameof(CanGoNext));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+
+        if (!ok)
+        {
+            _logger.LogInformation("Avance bloqueado en step Hotkey: SaveAsync devolvió false");
+            return;
+        }
+
+        CurrentStep = OnboardingStep.Prueba;
         _logger.LogDebug("Onboarding → {Step}", CurrentStep);
     }
 

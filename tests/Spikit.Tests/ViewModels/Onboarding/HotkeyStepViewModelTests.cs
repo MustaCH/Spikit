@@ -1,14 +1,15 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Spikit.Models;
 using Spikit.Native;
+using Spikit.Services.Hotkey;
 using Spikit.ViewModels.Onboarding;
 
 namespace Spikit.Tests.ViewModels.Onboarding;
 
 public class HotkeyStepViewModelTests
 {
-    private static HotkeyStepViewModel MakeVm() =>
-        new(NullLogger<HotkeyStepViewModel>.Instance);
+    private static HotkeyStepViewModel MakeVm(IHotkeyConfigWriter? writer = null) =>
+        new(NullLogger<HotkeyStepViewModel>.Instance, writer ?? new FakeConfigWriter());
 
     // ===== Bootstrap =====
 
@@ -159,5 +160,116 @@ public class HotkeyStepViewModelTests
         vm.Hotkey = HotkeyDefinition.Default;
 
         Assert.Equal(0, fired);
+    }
+
+    // ===== SaveAsync (EP-3.6) =====
+
+    [Fact]
+    public async Task SaveAsync_returns_false_when_no_hotkey_captured()
+    {
+        var writer = new FakeConfigWriter();
+        var vm = MakeVm(writer);
+        vm.Hotkey = null;
+
+        var ok = await vm.SaveAsync();
+
+        Assert.False(ok);
+        Assert.Contains("Capturá", vm.SaveError);
+        Assert.Equal(0, writer.CallCount);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_definition_and_mode()
+    {
+        var writer = new FakeConfigWriter();
+        var vm = MakeVm(writer);
+
+        var ok = await vm.SaveAsync();
+
+        Assert.True(ok);
+        Assert.Empty(vm.SaveError);
+        Assert.False(vm.HasSaveError);
+        Assert.False(vm.IsSaving);
+        Assert.Equal(1, writer.CallCount);
+        Assert.Equal(HotkeyDefinition.Default, writer.LastDefinition);
+        Assert.Equal(HotkeyMode.PushToTalk, writer.LastMode);
+    }
+
+    [Fact]
+    public async Task SaveAsync_passes_toggle_mode_when_selected()
+    {
+        var writer = new FakeConfigWriter();
+        var vm = MakeVm(writer);
+        vm.IsToggle = true;
+
+        await vm.SaveAsync();
+
+        Assert.Equal(HotkeyMode.Toggle, writer.LastMode);
+    }
+
+    [Fact]
+    public async Task SaveAsync_shows_cb7_message_on_HotkeyRegistrationException()
+    {
+        var writer = new FakeConfigWriter
+        {
+            ThrowOnSave = new HotkeyRegistrationException("Win32 1409"),
+        };
+        var vm = MakeVm(writer);
+
+        var ok = await vm.SaveAsync();
+
+        Assert.False(ok);
+        Assert.True(vm.HasSaveError);
+        Assert.Contains("en uso por el sistema o por otra app", vm.SaveError);
+    }
+
+    [Fact]
+    public async Task SaveAsync_shows_writer_message_on_HotkeyConfigSaveException()
+    {
+        var writer = new FakeConfigWriter
+        {
+            ThrowOnSave = new HotkeyConfigSaveException("disk full"),
+        };
+        var vm = MakeVm(writer);
+
+        var ok = await vm.SaveAsync();
+
+        Assert.False(ok);
+        Assert.Equal("disk full", vm.SaveError);
+    }
+
+    [Fact]
+    public async Task Capturing_a_new_hotkey_clears_previous_save_error()
+    {
+        var writer = new FakeConfigWriter
+        {
+            ThrowOnSave = new HotkeyRegistrationException("CB-7"),
+        };
+        var vm = MakeVm(writer);
+
+        await vm.SaveAsync();
+        Assert.True(vm.HasSaveError);
+
+        vm.Hotkey = new HotkeyDefinition(HotkeyModifiers.Control | HotkeyModifiers.Shift, VirtualKeys.Space);
+
+        Assert.Empty(vm.SaveError);
+        Assert.False(vm.HasSaveError);
+    }
+
+    private sealed class FakeConfigWriter : IHotkeyConfigWriter
+    {
+        public HotkeyDefinition? LastDefinition { get; private set; }
+        public HotkeyMode? LastMode { get; private set; }
+        public int CallCount { get; private set; }
+        public Exception? ThrowOnSave { get; set; }
+
+        public Task SaveAsync(HotkeyDefinition definition, HotkeyMode mode, CancellationToken ct = default)
+        {
+            CallCount++;
+            LastDefinition = definition;
+            LastMode = mode;
+            if (ThrowOnSave is not null) throw ThrowOnSave;
+            return Task.CompletedTask;
+        }
     }
 }

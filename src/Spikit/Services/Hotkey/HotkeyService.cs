@@ -25,6 +25,8 @@ public sealed class HotkeyService : IHotkeyService
     public event EventHandler? HotkeyPressed;
     public event EventHandler? HotkeyReleased;
 
+    public HotkeyDefinition? CurrentRegistration => _registered;
+
     public HotkeyService(ILogger<HotkeyService> logger)
     {
         _logger = logger;
