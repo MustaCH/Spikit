@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:models="clr-namespace:Spikit.Models"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.RenderTransform>
@@ -11,9 +12,7 @@
     <UserControl.Style>
         <Style TargetType="UserControl">
             <Style.Triggers>
-                <!-- Cuando el step se vuelve visible, fade-in + slide-up. Animamos el UserControl
-                     mismo (Opacity + TranslateY del RenderTransform) — el TargetName no funciona
-                     desde Style.Triggers, hay que apuntar al self vía property path. -->
+                <!-- Fade-in + slide-up al volverse visible. Mismo patrón que los otros steps. -->
                 <Trigger Property="Visibility" Value="Visible">
                     <Trigger.EnterActions>
                         <BeginStoryboard>
@@ -34,35 +33,351 @@
         </Style>
     </UserControl.Style>
 
-    <!-- Placeholder — la UI real (preset / Base URL / API key / Model / Probar conexión)
-         se cablea en EP-3.2 (ticket 86ahb6by4) + EP-3.3 + EP-3.4. -->
-    <Grid MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Top">
-        <StackPanel>
-            <TextBlock Text="Conectá tu provider"
-                       Style="{StaticResource SpkTypeH1Style}"
-                       Margin="0,0,0,8"/>
-            <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,32"
-                       Text="Cualquier endpoint compatible con la API de OpenAI Whisper. Recomendados: Groq por velocidad, OpenAI por calidad."/>
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-            <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                    BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="20">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SpkTypeBodySmStyle}"
-                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                               Text="PLACEHOLDER · EP-3.2 / EP-3.3 / EP-3.4"
-                               Margin="0,0,0,8"/>
-                    <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                               TextWrapping="Wrap"
-                               Text="Acá van: dropdown de presets, Base URL, API key (con DPAPI hint), Model y botón Probar conexión con feedback ✓/✗."/>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+        <!-- Form field label: caption mayúscula, pequeña, fg.secondary. -->
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeBodySmStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Helper text bajo el campo (DPAPI hint, etc). -->
+        <Style x:Key="HelperTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+
+        <!-- TextBox base — design-system §9.2. -->
+        <Style x:Key="SpkTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          BorderThickness="0"
+                                          IsTabStop="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Variante mono para Base URL / Model (que son URLs y identificadores técnicos). -->
+        <Style x:Key="SpkTextBoxMonoStyle" TargetType="TextBox" BasedOn="{StaticResource SpkTextBoxStyle}">
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeistMono}"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <!-- PasswordBox: mismo template que TextBox para que el look sea idéntico. -->
+        <Style x:Key="SpkPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeistMono}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          BorderThickness="0"
+                                          IsTabStop="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ComboBox simplificado. design-system §9.3 pide popup con bg.elevated + shadow.md.
+             Este template es el mínimo aceptable; EP-6 (pulido) puede refinarlo si hace falta. -->
+        <Style x:Key="SpkComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgBrandMutedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SpkComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SpkComboBoxItemStyle}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0"
+                                                      x:Name="ContentSite"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      VerticalAlignment="Center"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      IsHitTestVisible="False"/>
+                                    <Path Grid.Column="1"
+                                          Width="10" Height="10"
+                                          Margin="0,0,12,0"
+                                          VerticalAlignment="Center"
+                                          Stroke="{DynamicResource SpkFgSecondaryBrush}"
+                                          StrokeThickness="1.5"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Data="M 1,3 L 5,7 L 9,3"
+                                          IsHitTestVisible="False"/>
+                                </Grid>
+                            </Border>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Grid.Column="0"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent"/>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup x:Name="Popup"
+                                   AllowsTransparency="True"
+                                   Placement="Bottom"
+                                   PopupAnimation="Slide"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Focusable="False">
+                                <Border Background="{DynamicResource SpkBgElevatedBrush}"
+                                        BorderBrush="{DynamicResource SpkBorderDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="320"
+                                        Margin="0,4,0,0">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="4" Opacity="0.5" Color="Black"/>
+                                    </Border.Effect>
+                                    <ScrollViewer>
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botón ojo (toggle visibility de API key) inline a la derecha del input. -->
+        <Style x:Key="EyeToggleStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid MaxWidth="480" HorizontalAlignment="Stretch" VerticalAlignment="Top">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="Conectá tu provider"
+                           Style="{StaticResource SpkTypeH1Style}"
+                           Margin="0,0,0,8"/>
+                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,24"
+                           Text="Recomendados: Groq por velocidad, OpenAI por calidad. Cualquier endpoint compatible con la API de OpenAI Whisper funciona."/>
+
+                <!-- Preset -->
+                <TextBlock Text="Preset" Style="{StaticResource FieldLabelStyle}"/>
+                <ComboBox Style="{StaticResource SpkComboBoxStyle}"
+                          ItemsSource="{Binding Presets}"
+                          DisplayMemberPath="Label"
+                          SelectedValuePath="Value"
+                          SelectedValue="{Binding SelectedPreset}"
+                          IsEnabled="{Binding IsNotBusyTesting}"
+                          Margin="0,0,0,16"/>
+
+                <!-- Base URL -->
+                <TextBlock Text="Base URL" Style="{StaticResource FieldLabelStyle}"/>
+                <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
+                         Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsNotBusyTesting}"
+                         Margin="0,0,0,16"/>
+
+                <!-- API key + toggle 👁 -->
+                <TextBlock Text="API key" Style="{StaticResource FieldLabelStyle}"/>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <PasswordBox x:Name="ApiKeyPasswordBox"
+                                 Grid.Column="0"
+                                 Style="{StaticResource SpkPasswordBoxStyle}"
+                                 PasswordChanged="ApiKeyPasswordBox_PasswordChanged"
+                                 IsEnabled="{Binding IsNotBusyTesting}"
+                                 Visibility="{Binding IsApiKeyHidden, Converter={StaticResource BoolToVis}}"/>
+
+                    <TextBox x:Name="ApiKeyTextBox"
+                             Grid.Column="0"
+                             Style="{StaticResource SpkTextBoxMonoStyle}"
+                             Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsNotBusyTesting}"
+                             Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
+
+                    <Button Grid.Column="1"
+                            Style="{StaticResource EyeToggleStyle}"
+                            Margin="6,0,0,0"
+                            Click="ToggleApiKeyVisibility_Click"
+                            ToolTip="Mostrar/ocultar API key">
+                        <!-- Glyph fallback: cuando el toggle está hidden mostramos un ojo, abierto un ojo tachado. -->
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="👁"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsApiKeyVisible}" Value="True">
+                                            <Setter Property="Text" Value="—"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+                </Grid>
+                <TextBlock Style="{StaticResource HelperTextStyle}"
+                           Margin="0,2,0,16"
+                           Text="Tu key se guarda cifrada con Windows DPAPI."/>
+
+                <!-- Modelo -->
+                <TextBlock Text="Modelo" Style="{StaticResource FieldLabelStyle}"/>
+                <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
+                         Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsNotBusyTesting}"
+                         Margin="0,0,0,4"/>
+                <TextBlock Style="{StaticResource HelperTextStyle}"
+                           Margin="0,2,0,0"
+                           Text="El nombre del modelo Whisper-compatible que usa tu provider."/>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

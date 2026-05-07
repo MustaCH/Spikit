@@ -19,14 +19,21 @@ public sealed class OnboardingViewModel : ViewModelBase
     private OnboardingStep _currentStep = OnboardingStep.Welcome;
     private bool _isCompleted;
 
-    public OnboardingViewModel(ILogger<OnboardingViewModel> logger)
+    public OnboardingViewModel(
+        ILogger<OnboardingViewModel> logger,
+        ProviderStepViewModel provider)
     {
         _logger = logger;
+        Provider = provider;
 
         GoNextCommand = new RelayCommand(GoNext, () => CanGoNext);
         GoBackCommand = new RelayCommand(GoBack, () => CanGoBack);
         SkipCommand = new RelayCommand(Skip, () => IsSkipVisible);
     }
+
+    // VMs por paso, expuestos como propiedades para que cada UserControl haga
+    // DataContext="{Binding Provider}" en el OnboardingWindow.
+    public ProviderStepViewModel Provider { get; }
 
     // Disparado cuando el usuario llega al final del wizard (Finalizar o Saltar en Prueba).
     // El consumer (Window) decide si cerrar la ventana, persistir el flag onboardingCompleted, etc.

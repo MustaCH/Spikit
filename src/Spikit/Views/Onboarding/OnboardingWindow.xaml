@@ -296,7 +296,8 @@
         <!-- Content host: cada UserControl visible solo cuando es el step activo. -->
         <Grid Grid.Row="1">
             <steps:WelcomeStepView Visibility="{Binding IsWelcomeStep, Converter={StaticResource BoolToVis}}"/>
-            <steps:ProviderStepView Visibility="{Binding IsProviderStep, Converter={StaticResource BoolToVis}}"/>
+            <steps:ProviderStepView DataContext="{Binding Provider}"
+                                    Visibility="{Binding DataContext.IsProviderStep, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
             <steps:HotkeyStepView Visibility="{Binding IsHotkeyStep, Converter={StaticResource BoolToVis}}"/>
             <steps:PruebaStepView Visibility="{Binding IsPruebaStep, Converter={StaticResource BoolToVis}}"/>
         </Grid>

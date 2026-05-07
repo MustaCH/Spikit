@@ -49,11 +49,13 @@ public static class Program
                     // Herramienta de diagnóstico EP-1 accesible vía --diagnostics-poc. Ver ADR-0003.
                     services.AddSingleton<PocLatencyWindow>();
 
-                    // Onboarding shell (EP-3.1). Transient porque la window se crea/destruye
-                    // por sesión de configuración inicial y el VM mantiene estado mutable
-                    // (CurrentStep, IsCompleted) que no debe sobrevivir entre aperturas.
+                    // Onboarding shell (EP-3.1) + step VMs.
+                    // Transient: la window se crea/destruye por sesión de configuración inicial
+                    // y los VMs tienen estado mutable (CurrentStep, campos del form) que no debe
+                    // sobrevivir entre aperturas.
                     services.AddTransient<OnboardingWindow>();
                     services.AddTransient<OnboardingViewModel>();
+                    services.AddTransient<ProviderStepViewModel>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
