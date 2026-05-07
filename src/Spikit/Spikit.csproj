@@ -43,6 +43,7 @@
 
   <ItemGroup>
     <Resource Include="Resources\Fonts\*.ttf" />
+    <Resource Include="Resources\Brand\*.png" />
   </ItemGroup>
 
 </Project>

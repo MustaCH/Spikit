@@ -13,8 +13,10 @@ using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
 using Spikit.ViewModels;
+using Spikit.ViewModels.Onboarding;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
+using Spikit.Views.Onboarding;
 
 namespace Spikit;
 
@@ -46,6 +48,12 @@ public static class Program
 
                     // Herramienta de diagnóstico EP-1 accesible vía --diagnostics-poc. Ver ADR-0003.
                     services.AddSingleton<PocLatencyWindow>();
+
+                    // Onboarding shell (EP-3.1). Transient porque la window se crea/destruye
+                    // por sesión de configuración inicial y el VM mantiene estado mutable
+                    // (CurrentStep, IsCompleted) que no debe sobrevivir entre aperturas.
+                    services.AddTransient<OnboardingWindow>();
+                    services.AddTransient<OnboardingViewModel>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();

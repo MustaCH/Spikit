@@ -6,6 +6,7 @@ using Spikit.Cli;
 using Spikit.Services.Orchestration;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
+using Spikit.Views.Onboarding;
 
 namespace Spikit;
 
@@ -30,15 +31,21 @@ public partial class App : Application
         _logger.LogInformation("App started");
 
         // Acceso a la herramienta de diagnóstico EP-1 vía --diagnostics-poc. Ver ADR-0003.
-        Window startupWindow = _cliArgs.DiagnosticsPoc
-            ? _host.Services.GetRequiredService<PocLatencyWindow>()
-            : _host.Services.GetRequiredService<MainWindow>();
+        // Acceso al shell de Onboarding (EP-3.1) vía --onboarding. EP-3.8 reemplaza este
+        // routing manual por el bootstrap gate (lectura del flag onboardingCompleted).
+        Window startupWindow = _cliArgs switch
+        {
+            { DiagnosticsPoc: true } => _host.Services.GetRequiredService<PocLatencyWindow>(),
+            { Onboarding: true } => _host.Services.GetRequiredService<OnboardingWindow>(),
+            _ => _host.Services.GetRequiredService<MainWindow>(),
+        };
 
         startupWindow.Show();
 
         // Arrancamos el orchestrator después de que la UI principal exista, para que
         // captura Dispatcher.CurrentDispatcher correctamente y el hotkey global se registre.
-        if (!_cliArgs.DiagnosticsPoc)
+        // En modos de preview (POC y Onboarding shell) no levantamos el orchestrator.
+        if (!_cliArgs.DiagnosticsPoc && !_cliArgs.Onboarding)
         {
             // La pill flotante se muestra primero (off-screen, modo Hidden) para que esté
             // pre-cargada al primer press y la animación de entrada arranque sin hiccup.
@@ -55,7 +62,7 @@ public partial class App : Application
     {
         _logger.LogInformation("App exiting");
 
-        if (!_cliArgs.DiagnosticsPoc)
+        if (!_cliArgs.DiagnosticsPoc && !_cliArgs.Onboarding)
         {
             try { _host.Services.GetRequiredService<DictationOrchestrator>().Dispose(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Error disposing orchestrator"); }

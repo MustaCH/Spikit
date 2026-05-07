@@ -1,0 +1,131 @@
+<UserControl x:Class="Spikit.Views.Onboarding.Steps.WelcomeStepView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="Transparent">
+    <!-- Pantalla 1.0 Welcome — preludio sin stepper. flows.md FLOW 1 + design-system §11.1.
+         Tipografía display + lista numerada + CTA primaria centrada (esta última vive en el footer
+         del OnboardingWindow). -->
+    <UserControl.Resources>
+        <!-- Pulse sutil del logo: respira ligeramente para que la pantalla no quede totalmente estática. -->
+        <Storyboard x:Key="LogoPulse" RepeatBehavior="Forever" AutoReverse="True">
+            <DoubleAnimation Storyboard.TargetName="LogoScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="1.0" To="1.05"
+                             Duration="0:0:2.4">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="LogoScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="1.0" To="1.05"
+                             Duration="0:0:2.4">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+    </UserControl.Resources>
+
+    <UserControl.Triggers>
+        <EventTrigger RoutedEvent="UserControl.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <!-- Fade-in + slide-up del contenido. -->
+                    <DoubleAnimation Storyboard.TargetName="ContentRoot"
+                                     Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1"
+                                     Duration="0:0:0.32"/>
+                    <DoubleAnimation Storyboard.TargetName="ContentTranslate"
+                                     Storyboard.TargetProperty="Y"
+                                     From="16" To="0"
+                                     Duration="0:0:0.32">
+                        <DoubleAnimation.EasingFunction>
+                            <CubicEase EasingMode="EaseOut"/>
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+        <EventTrigger RoutedEvent="UserControl.Loaded">
+            <BeginStoryboard Storyboard="{StaticResource LogoPulse}"/>
+        </EventTrigger>
+    </UserControl.Triggers>
+
+    <Grid x:Name="ContentRoot"
+          MaxWidth="440"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Opacity="0">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="ContentTranslate" Y="16"/>
+        </Grid.RenderTransform>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Logo hero (logo_rojo.png) — design-system §1 dice 80px height para hero del setup wizard.
+             Fondo transparente, scale animado para el pulse. -->
+        <Image Grid.Row="0"
+               Source="pack://application:,,,/Resources/Brand/logo_rojo.png"
+               Height="80"
+               Stretch="Uniform"
+               HorizontalAlignment="Center"
+               Margin="0,0,0,28"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               RenderTransformOrigin="0.5,0.5">
+            <Image.RenderTransform>
+                <ScaleTransform x:Name="LogoScale" ScaleX="1.0" ScaleY="1.0"/>
+            </Image.RenderTransform>
+        </Image>
+
+        <TextBlock Grid.Row="1"
+                   Text="Bienvenido a Spikit"
+                   Style="{StaticResource SpkTypeDisplayStyle}"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="2" Margin="0,0,0,28">
+            <TextBlock Text="Vamos a configurarlo en 3 pasos rápidos."
+                       Style="{StaticResource SpkTypeBodyLgStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="No vas a poder dictar hasta terminar."
+                       Style="{StaticResource SpkTypeBodyLgStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,2,0,20"/>
+
+            <StackPanel HorizontalAlignment="Center">
+                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                           Margin="0,0,0,6">
+                    <Run Text="1." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
+                    <Run Text="  Conectá tu API key (BYOK)"/>
+                </TextBlock>
+                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                           Margin="0,0,0,6">
+                    <Run Text="2." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
+                    <Run Text="  Elegí tu hotkey"/>
+                </TextBlock>
+                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}">
+                    <Run Text="3." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
+                    <Run Text="  Probalo"/>
+                </TextBlock>
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock Grid.Row="3"
+                   Text="¿Ya configurás API keys? Esto te lleva ~2 min."
+                   Style="{StaticResource SpkTypeCaptionStyle}"
+                   HorizontalAlignment="Center"/>
+    </Grid>
+</UserControl>

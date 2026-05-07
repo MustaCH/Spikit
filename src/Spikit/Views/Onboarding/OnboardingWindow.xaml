@@ -1,0 +1,355 @@
+<Window x:Class="Spikit.Views.Onboarding.OnboardingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:steps="clr-namespace:Spikit.Views.Onboarding.Steps"
+        mc:Ignorable="d"
+        Title="Spikit — Configuración inicial"
+        Height="640" Width="560"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SpkBgCanvasBrush}">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Botones — variantes alineadas a design-system §9.1 (sin librería externa, custom template).
+             Primary suma scale + glow sutiles al hover/press para que el CTA se sienta vivo. -->
+        <Style x:Key="OnbPrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="HoverScale" ScaleX="1.0" ScaleY="1.0"/>
+                            </Grid.RenderTransform>
+                            <Grid.RenderTransformOrigin>0.5,0.5</Grid.RenderTransformOrigin>
+                            <Border x:Name="Bg"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <Border.Effect>
+                                    <DropShadowEffect x:Name="BgGlow"
+                                                      BlurRadius="0"
+                                                      ShadowDepth="0"
+                                                      Color="#FF3B30"
+                                                      Opacity="0"/>
+                                </Border.Effect>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             To="1.03" Duration="0:0:0.16"/>
+                                            <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                             Storyboard.TargetProperty="ScaleY"
+                                                             To="1.03" Duration="0:0:0.16"/>
+                                            <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                             Storyboard.TargetProperty="BlurRadius"
+                                                             To="20" Duration="0:0:0.16"/>
+                                            <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.6" Duration="0:0:0.16"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             To="1.0" Duration="0:0:0.16"/>
+                                            <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                             Storyboard.TargetProperty="ScaleY"
+                                                             To="1.0" Duration="0:0:0.16"/>
+                                            <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                             Storyboard.TargetProperty="BlurRadius"
+                                                             To="0" Duration="0:0:0.16"/>
+                                            <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.16"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OnbSecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OnbGhostButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Step indicator (●━○━○) — design-system §9.7.
+             Círculo 12px. Línea 32px ancho × 2px alto.
+             Done = brand sólido + check. Current = brand sólido sin check. Upcoming = border default + bg canvas. -->
+        <Style x:Key="StepCircleStyle" TargetType="Border">
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Height" Value="12"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="{DynamicResource SpkBgCanvasBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+        </Style>
+
+        <Style x:Key="StepLineStyle" TargetType="Border">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="2"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Background" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <!-- Glow rojo radial al fondo: anclado al borde inferior, fade vertical y horizontal.
+             Debajo de todo el contenido. Encaja con la identidad de marca (rojo Spikit) sin
+             saturar — opacity baja para que sea atmósfera, no decoración protagonista. -->
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <RadialGradientBrush GradientOrigin="0.5,1.05"
+                                     Center="0.5,1.05"
+                                     RadiusX="0.85" RadiusY="0.55">
+                    <GradientStop Offset="0.0" Color="#3DFF3B30"/>
+                    <GradientStop Offset="0.55" Color="#14FF3B30"/>
+                    <GradientStop Offset="1.0" Color="#00FF3B30"/>
+                </RadialGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <!-- Padding ajustado al tamaño nuevo de window (560×640): horizontal 28, top 32, bottom 20. -->
+        <Grid Margin="28,32,28,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- Stepper -->
+                <RowDefinition Height="*"/>     <!-- Content -->
+                <RowDefinition Height="Auto"/>  <!-- Footer -->
+            </Grid.RowDefinitions>
+
+        <!-- Step indicator (●━○━○ + label "Paso N de 3") -->
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,32"
+                    Visibility="{Binding IsStepperVisible, Converter={StaticResource BoolToVis}}">
+
+            <!-- Step 1 (Provider) -->
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource StepCircleStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsStep1Done}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsStep1Current}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
+            <Border Margin="6,0">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource StepLineStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLine12Active}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
+            <!-- Step 2 (Hotkey) -->
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource StepCircleStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsStep2Done}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsStep2Current}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
+            <Border Margin="6,0">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource StepLineStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLine23Active}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
+            <!-- Step 3 (Prueba) -->
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource StepCircleStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsStep3Current}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
+            <TextBlock Text="{Binding StepperLabel}"
+                       Style="{StaticResource SpkTypeBodySmStyle}"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0"/>
+        </StackPanel>
+
+        <!-- Content host: cada UserControl visible solo cuando es el step activo. -->
+        <Grid Grid.Row="1">
+            <steps:WelcomeStepView Visibility="{Binding IsWelcomeStep, Converter={StaticResource BoolToVis}}"/>
+            <steps:ProviderStepView Visibility="{Binding IsProviderStep, Converter={StaticResource BoolToVis}}"/>
+            <steps:HotkeyStepView Visibility="{Binding IsHotkeyStep, Converter={StaticResource BoolToVis}}"/>
+            <steps:PruebaStepView Visibility="{Binding IsPruebaStep, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+
+        <!-- Footer: dos layouts mutuamente excluyentes según si es Welcome (CTA centrada única)
+             o un step numerado (Atrás izquierda · Saltar+Siguiente derecha). -->
+        <Grid Grid.Row="2" Margin="0,32,0,0">
+
+            <!-- Welcome: una sola CTA primaria centrada. -->
+            <Button Style="{StaticResource OnbPrimaryButton}"
+                    Command="{Binding GoNextCommand}"
+                    Content="{Binding NextButtonLabel}"
+                    HorizontalAlignment="Center"
+                    MinWidth="200"
+                    Visibility="{Binding IsNextCenteredOnly, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- Steps numerados: Atrás · Saltar · Siguiente / Finalizar. -->
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNextCenteredOnly}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Style="{StaticResource OnbSecondaryButton}"
+                        Command="{Binding GoBackCommand}"
+                        HorizontalAlignment="Left"
+                        Visibility="{Binding IsBackVisible, Converter={StaticResource BoolToVis}}"
+                        Content="← Atrás"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Style="{StaticResource OnbGhostButton}"
+                            Command="{Binding SkipCommand}"
+                            Content="Saltar"
+                            Margin="0,0,8,0"
+                            Visibility="{Binding IsSkipVisible, Converter={StaticResource BoolToVis}}"/>
+
+                    <Button Style="{StaticResource OnbPrimaryButton}"
+                            Command="{Binding GoNextCommand}"
+                            Content="{Binding NextButtonLabel}"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+        </Grid>
+    </Grid>
+</Window>
