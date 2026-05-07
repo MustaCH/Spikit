@@ -13,6 +13,7 @@ using Spikit.Services.Orchestration;
 using Spikit.Services.Provider;
 using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
+using Spikit.Services.Tray;
 using Spikit.Services.Transcription;
 using Spikit.ViewModels;
 using Spikit.ViewModels.Onboarding;
@@ -70,6 +71,9 @@ public static class Program
                     services.AddTransient<SettingsWindow>();
                     services.AddTransient<SettingsViewModel>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
+
+                    // TrayIcon (EP-4.2) — singleton inicializado en App.EnterMainAppMode.
+                    services.AddSingleton<ITrayIconService, WpfTrayIconService>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IHotkeyConfigWriter, HotkeyConfigWriter>();

@@ -28,6 +28,8 @@ public sealed class JsonSettingsService : ISettingsService
     private readonly ILogger<JsonSettingsService> _logger;
     private readonly object _writeLock = new();
 
+    public event EventHandler? SettingsChanged;
+
     public JsonSettingsService(ILogger<JsonSettingsService> logger)
         : this(DefaultFilePath(), logger)
     {
@@ -97,6 +99,11 @@ public sealed class JsonSettingsService : ISettingsService
         }
 
         _logger.LogDebug("settings.json escrito en {Path}", _filePath);
+
+        // Disparado fuera del lock para no mantener el writeLock durante callbacks largos
+        // de suscriptores (refresh de UI, etc.). El evento garantiza solo "algo cambió",
+        // no qué cambió — los listeners hacen Load() para el snapshot fresco.
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static string DefaultFilePath() => Path.Combine(

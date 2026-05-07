@@ -20,12 +20,36 @@ public sealed class HotkeyService : IHotkeyService
     private DispatcherTimer? _releaseTimer;
     private HotkeyDefinition? _registered;
     private bool _isPressed;
+    private bool _isPaused;
     private bool _disposed;
 
     public event EventHandler? HotkeyPressed;
     public event EventHandler? HotkeyReleased;
+    public event EventHandler? PausedChanged;
 
     public HotkeyDefinition? CurrentRegistration => _registered;
+
+    public bool IsPaused => _isPaused;
+
+    public void SetPaused(bool paused)
+    {
+        if (_isPaused == paused) return;
+        _isPaused = paused;
+        _logger.LogInformation("Hotkey {State}", paused ? "pausado" : "reanudado");
+        PausedChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void TriggerManualPress()
+    {
+        if (_isPressed || _isPaused) return;
+        _isPressed = true;
+        _logger.LogDebug("Hotkey press manual disparado (tray menu)");
+        HotkeyPressed?.Invoke(this, EventArgs.Empty);
+        // Importante: NO StartReleasePolling — el caller (tray) solo invoca esto en Toggle.
+        // En Toggle el orchestrator no espera HotkeyReleased; la sesión se cierra al
+        // siguiente press (manual o físico).
+        _isPressed = false;
+    }
 
     public HotkeyService(ILogger<HotkeyService> logger)
     {
@@ -110,6 +134,15 @@ public sealed class HotkeyService : IHotkeyService
         if (_isPressed)
         {
             // NoRepeat debería evitar esto, pero por seguridad ignoramos doble-press.
+            return IntPtr.Zero;
+        }
+
+        // Pausa via tray menu: cortocircuita el evento sin desregistrar la combinación.
+        // Logueamos a debug porque el press es esperado (el OS sigue mandando WM_HOTKEY)
+        // — solo lo silenciamos a nivel app.
+        if (_isPaused)
+        {
+            _logger.LogDebug("Hotkey press ignorado: app pausada");
             return IntPtr.Zero;
         }
 

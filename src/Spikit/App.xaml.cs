@@ -7,6 +7,7 @@ using Spikit.Services.Hotkey;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
+using Spikit.Services.Tray;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
 using Spikit.Views.Onboarding;
@@ -106,6 +107,10 @@ public partial class App : Application
 
         _host.Services.GetRequiredService<DictationOrchestrator>().Start();
 
+        // Tray icon es el entry point permanente (EP-4.2). Se inicializa solo en MainApp
+        // mode — durante onboarding o --diagnostics-poc no tiene sentido tener tray.
+        _host.Services.GetRequiredService<ITrayIconService>().Initialize();
+
         var main = _host.Services.GetRequiredService<MainWindow>();
         main.Show();
     }
@@ -143,6 +148,9 @@ public partial class App : Application
 
         if (_mainAppActive)
         {
+            try { _host.Services.GetRequiredService<ITrayIconService>().Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Error disposing tray icon"); }
+
             try { _host.Services.GetRequiredService<DictationOrchestrator>().Dispose(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Error disposing orchestrator"); }
         }

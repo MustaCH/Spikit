@@ -15,7 +15,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
@@ -86,24 +85,6 @@
                    FontSize="11"
                    Foreground="{DynamicResource SpkFgMutedBrush}"
                    TextWrapping="Wrap"
-                   Text="Para probar paste real: poné foco en otra app antes de apretar Ctrl+Alt+M. Logs en %AppData%\Spikit\logs\."/>
-
-        <!-- Entrada temporal a Settings hasta EP-4.2 (TrayIcon). Stack horizontal para
-             dejar lugar a otros botones de dev si hacen falta. -->
-        <StackPanel Grid.Row="6" Orientation="Horizontal"
-                    Margin="0,16,0,0"
-                    HorizontalAlignment="Left">
-            <Button Content="Abrir Settings"
-                    Command="{Binding OpenSettingsCommand}"
-                    Padding="14,8"
-                    FontSize="13"
-                    FontFamily="{DynamicResource SpkFontGeist}"
-                    FontWeight="Medium"
-                    Background="{DynamicResource SpkBgElevatedBrush}"
-                    Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                    BorderBrush="{DynamicResource SpkBorderDefaultBrush}"
-                    BorderThickness="1"
-                    Cursor="Hand"/>
-        </StackPanel>
+                   Text="Para probar paste real: poné foco en otra app antes de apretar Ctrl+Alt+M. Settings y los controles de la app viven en el tray icon. Logs en %AppData%\Spikit\logs\."/>
     </Grid>
 </Window>

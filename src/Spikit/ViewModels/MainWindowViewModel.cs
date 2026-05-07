@@ -1,15 +1,13 @@
-using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Spikit.Services.Orchestration;
-using Spikit.Services.Settings;
 
 namespace Spikit.ViewModels;
 
-// La MainWindow se reduce a chrome de debug del orchestrator: muestra el estado
-// actual + el último mensaje de pill + el último texto transcripto. La pill real
-// y el ciclo de vida del flow viven en DictationOrchestrator + sub-task #6
-// (DictationPillWindow). Esta ventana se va a ocultar cuando llegue el tray icon.
+// La MainWindow es chrome de debug del orchestrator: muestra estado + pill message + último
+// texto transcripto. El entry point real a Settings ahora vive en el TrayIcon (EP-4.2);
+// esta window queda como utilidad de desarrollo. Cerrarla NO cierra la app — el ShutdownMode
+// es OnExplicitShutdown y la app sigue viva por el tray.
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
     private readonly DictationOrchestrator _orchestrator;
@@ -24,24 +22,16 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     public MainWindowViewModel(
         DictationOrchestrator orchestrator,
-        ILogger<MainWindowViewModel> logger,
-        ISettingsWindowPresenter settingsPresenter)
+        ILogger<MainWindowViewModel> logger)
     {
         _orchestrator = orchestrator;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        // Entrada temporal a Settings hasta que EP-4.2 cablee el TrayIcon como punto
-        // de entrada canónico. La MainWindow ya está marcada como debug (texto inline
-        // en el XAML) y este botón vive en la misma línea de "ventana de desarrollo".
-        OpenSettingsCommand = new RelayCommand(settingsPresenter.Open);
-
         _orchestrator.StateChanged += OnStateChanged;
         _orchestrator.PillMessageChanged += OnPillMessageChanged;
         _orchestrator.TranscriptionCompleted += OnTranscriptionCompleted;
     }
-
-    public ICommand OpenSettingsCommand { get; }
 
     public string State
     {
