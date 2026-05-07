@@ -113,13 +113,16 @@ public class HotkeyConfigWriterTests
     private sealed class FakeHotkeyService : IHotkeyService
     {
         private HotkeyDefinition? _current;
+        private bool _isPaused;
 
         public HotkeyDefinition? CurrentRegistration => _current;
+        public bool IsPaused => _isPaused;
 
         public Func<HotkeyDefinition, Exception?>? ThrowOnRegister { get; set; }
 
         public event EventHandler? HotkeyPressed;
         public event EventHandler? HotkeyReleased;
+        public event EventHandler? PausedChanged;
 
         public void Register(HotkeyDefinition definition)
         {
@@ -130,10 +133,19 @@ public class HotkeyConfigWriterTests
 
         public void Unregister() => _current = null;
 
+        public void SetPaused(bool paused)
+        {
+            if (_isPaused == paused) return;
+            _isPaused = paused;
+            PausedChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void TriggerManualPress() => HotkeyPressed?.Invoke(this, EventArgs.Empty);
+
         public void Dispose() { }
 
-        // Suprime warnings de eventos no usados.
-        private void Unused() { HotkeyPressed?.Invoke(this, EventArgs.Empty); HotkeyReleased?.Invoke(this, EventArgs.Empty); }
+        // Suprime warning de evento no usado.
+        private void Unused() { HotkeyReleased?.Invoke(this, EventArgs.Empty); }
     }
 
     private sealed class FakeSettingsService : ISettingsService
@@ -141,12 +153,15 @@ public class HotkeyConfigWriterTests
         public AppSettings? Saved { get; private set; }
         public Exception? ThrowOnSave { get; set; }
 
+        public event EventHandler? SettingsChanged;
+
         public AppSettings Load() => Saved ?? new AppSettings();
 
         public void Save(AppSettings settings)
         {
             if (ThrowOnSave is not null) throw ThrowOnSave;
             Saved = settings;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

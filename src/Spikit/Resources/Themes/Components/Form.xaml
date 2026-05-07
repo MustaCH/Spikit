@@ -1,0 +1,332 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Estilos compartidos por todos los formularios de la app (onboarding + settings).
+         El ProviderStepView del onboarding mantiene estos mismos styles inline (declarados
+         antes de este resource dictionary); cuando se haga el pulido visual de EP-6 conviene
+         migrar el step a consumir estos globales para eliminar la duplicación. -->
+
+    <!-- Form field label: caption mayúscula, pequeña, fg.secondary. -->
+    <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeBodySmStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <!-- Helper text bajo el campo (DPAPI hint, etc). -->
+    <Style x:Key="HelperTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+        <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+
+    <!-- TextBox base — design-system §9.2. -->
+    <Style x:Key="SpkTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center"
+                                      BorderThickness="0"
+                                      IsTabStop="False" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}" />
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Variante mono para Base URL / Model. -->
+    <Style x:Key="SpkTextBoxMonoStyle" TargetType="TextBox" BasedOn="{StaticResource SpkTextBoxStyle}">
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeistMono}" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- PasswordBox: mismo template que TextBox para que el look sea idéntico. -->
+    <Style x:Key="SpkPasswordBoxStyle" TargetType="PasswordBox">
+        <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeistMono}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center"
+                                      BorderThickness="0"
+                                      IsTabStop="False" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}" />
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SpkComboBoxItemStyle" TargetType="ComboBoxItem">
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd"
+                            Background="Transparent"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgBrandMutedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SpkComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource SpkComboBoxItemStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  IsHitTestVisible="False" />
+                                <Path Grid.Column="1"
+                                      Width="10" Height="10"
+                                      Margin="0,0,12,0"
+                                      VerticalAlignment="Center"
+                                      Stroke="{DynamicResource SpkFgSecondaryBrush}"
+                                      StrokeThickness="1.5"
+                                      StrokeLineJoin="Round"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Data="M 1,3 L 5,7 L 9,3"
+                                      IsHitTestVisible="False" />
+                            </Grid>
+                        </Border>
+                        <ToggleButton Grid.Column="0"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Focusable="False"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      ClickMode="Press">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="Transparent" />
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <Popup AllowsTransparency="True"
+                               Placement="Bottom"
+                               PopupAnimation="Slide"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               Focusable="False">
+                            <Border Background="{DynamicResource SpkBgElevatedBrush}"
+                                    BorderBrush="{DynamicResource SpkBorderDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="320"
+                                    Margin="0,4,0,0">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="12" ShadowDepth="4" Opacity="0.5" Color="Black" />
+                                </Border.Effect>
+                                <ScrollViewer>
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}" />
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Botón secundario para "Probar conexión" / acciones secundarias del form. -->
+    <Style x:Key="SpkSecondaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}" />
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.45" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Botón primary "Guardar cambios" / commit del form. Brand solid + scale + glow al hover.
+         Variante "compacta" del primary del onboarding (no usa el ScaleTransform animado para
+         mantener el padding cómodo de un form button vs el CTA principal de un wizard). -->
+    <Style x:Key="SpkPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="18,8" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#FF5C52" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Botón ojo (toggle visibility de API key) inline a la derecha del input. -->
+    <Style x:Key="SpkEyeToggleStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgElevatedBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

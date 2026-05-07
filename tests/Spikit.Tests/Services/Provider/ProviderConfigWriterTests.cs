@@ -132,12 +132,15 @@ public class ProviderConfigWriterTests
         public AppSettings? Saved { get; private set; }
         public Exception? ThrowOnSave { get; set; }
 
+        public event EventHandler? SettingsChanged;
+
         public AppSettings Load() => Existing ?? new AppSettings();
 
         public void Save(AppSettings settings)
         {
             if (ThrowOnSave is not null) throw ThrowOnSave;
             Saved = settings;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

@@ -64,8 +64,14 @@ public class OnboardingCompletionStoreTests
         public AppSettings? Existing { get; set; }
         public AppSettings? LastSaved { get; private set; }
 
+        public event EventHandler? SettingsChanged;
+
         public AppSettings Load() => LastSaved ?? Existing ?? new AppSettings();
 
-        public void Save(AppSettings settings) => LastSaved = settings;
+        public void Save(AppSettings settings)
+        {
+            LastSaved = settings;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

@@ -5,30 +5,315 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de la sección Provider. Implementación real en EP-4.3
-         (precarga + badge + Reemplazar key + Probar/Guardar). -->
-    <StackPanel>
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <!-- Layout: title + descripción + badge "Estás usando" + form fields + status + actions.
+         Mismos estilos compartidos que el step VM del onboarding (Form.xaml en Resources/Themes/Components/). -->
+    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+
         <TextBlock Text="Provider"
                    Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="API key, modelo y endpoint del transcriber."
+                   Margin="0,0,0,8" />
+        <TextBlock Text="Cambiá tu API key, modelo o endpoint cuando lo necesites. Los cambios se prueban antes de guardarse."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,20" />
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
+        <!-- Badge "Estás usando: {preset} · {model}" — siempre visible, refresca tras Save. -->
+        <Border Background="{DynamicResource SpkBgElevatedBrush}"
                 BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
                 BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
+                CornerRadius="6"
+                Padding="14,10"
+                Margin="0,0,0,24">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Estás usando: "
+                           Style="{StaticResource SpkTypeBodySmStyle}"
                            Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.3."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding BadgeText}"
+                           Style="{StaticResource SpkTypeBodySmStyle}"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                           FontWeight="Medium"
+                           VerticalAlignment="Center" />
             </StackPanel>
         </Border>
+
+        <!-- Preset dropdown — ItemTemplate con logo de marca (OpenAI / Groq) o placeholder
+             para Custom. Mismo template que el step del onboarding. -->
+        <TextBlock Text="Preset" Style="{StaticResource FieldLabelStyle}" />
+        <ComboBox Style="{StaticResource SpkComboBoxStyle}"
+                  ItemsSource="{Binding Presets}"
+                  SelectedValuePath="Value"
+                  SelectedValue="{Binding SelectedPreset}"
+                  IsEnabled="{Binding IsNotBusyTesting}"
+                  Margin="0,0,0,16">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <Grid Width="22" Height="22" Margin="0,0,10,0">
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Value}" Value="OpenAI">
+                                                <Setter Property="Source" Value="pack://application:,,,/Resources/Brand/openai.png" />
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Value}" Value="Groq">
+                                                <Setter Property="Source" Value="pack://application:,,,/Resources/Brand/groq.png" />
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Setter Property="Margin" Value="2" />
+                                                <Setter Property="Clip">
+                                                    <Setter.Value>
+                                                        <EllipseGeometry Center="9,9" RadiusX="9" RadiusY="9" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+
+                            <Border CornerRadius="11"
+                                    Background="{DynamicResource SpkBgElevatedBrush}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Value}" Value="Custom">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="+"
+                                           FontFamily="{DynamicResource SpkFontGeist}"
+                                           FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="{Binding Label}"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!-- Base URL: visible solo en Custom (igual que el step del onboarding). -->
+        <StackPanel Visibility="{Binding IsCustomPreset, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="Base URL" Style="{StaticResource FieldLabelStyle}" />
+            <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
+                     Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                     IsEnabled="{Binding IsNotBusyTesting}"
+                     Margin="0,0,0,16" />
+        </StackPanel>
+
+        <!-- API key + Modelo lado a lado (1.5 / 1 ratio). -->
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.5*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- API key block: dos modos.
+                 Masked (HasExistingKey && !IsReplacingKey): muestra placeholder enmascarado +
+                 botón "Reemplazar". La key real vive en _existingKey del VM y nunca pasa al form.
+                 Editable (IsReplacingKey || !HasExistingKey): PasswordBox/TextBox + eye toggle. -->
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="API key" Style="{StaticResource FieldLabelStyle}" />
+
+                <!-- Modo masked: pseudo-input read-only mostrando bullets + botón "Reemplazar". -->
+                <Grid Visibility="{Binding IsKeyMaskedPlaceholderVisible, Converter={StaticResource BoolToVis}}"
+                      Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource SpkBgSurfaceBrush}"
+                            BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Height="36">
+                        <TextBlock Text="••••••••••••••••••••••••"
+                                   FontFamily="{DynamicResource SpkFontGeistMono}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgMutedBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0" />
+                    </Border>
+                    <Button Grid.Column="1"
+                            Style="{StaticResource SpkSecondaryButtonStyle}"
+                            Command="{Binding ReplaceKeyCommand}"
+                            Content="Reemplazar"
+                            Margin="6,0,0,0" />
+                </Grid>
+
+                <!-- Modo editable: PasswordBox (oculto) + TextBox (visible) + eye toggle. -->
+                <Grid Visibility="{Binding IsKeyEditable, Converter={StaticResource BoolToVis}}"
+                      Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <PasswordBox x:Name="ApiKeyPasswordBox"
+                                 Grid.Column="0"
+                                 Style="{StaticResource SpkPasswordBoxStyle}"
+                                 PasswordChanged="ApiKeyPasswordBox_PasswordChanged"
+                                 IsEnabled="{Binding IsNotBusyTesting}"
+                                 Visibility="{Binding IsApiKeyHidden, Converter={StaticResource BoolToVis}}" />
+
+                    <TextBox x:Name="ApiKeyTextBox"
+                             Grid.Column="0"
+                             Style="{StaticResource SpkTextBoxMonoStyle}"
+                             Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsNotBusyTesting}"
+                             Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}" />
+
+                    <Button Grid.Column="1"
+                            Style="{StaticResource SpkEyeToggleStyle}"
+                            Margin="6,0,0,0"
+                            Click="ToggleApiKeyVisibility_Click"
+                            ToolTip="Mostrar/ocultar API key">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="👁" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsApiKeyVisible}" Value="True">
+                                            <Setter Property="Text" Value="—" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+                </Grid>
+
+                <!-- Validation feedback (solo cuando hay edición de la key). -->
+                <TextBlock Text="{Binding ApiKeyHardError}"
+                           Style="{StaticResource SpkTypeCaptionStyle}"
+                           Foreground="{DynamicResource SpkStateErrorFgBrush}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding HasApiKeyError, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding ApiKeySoftWarning}"
+                           Style="{StaticResource SpkTypeCaptionStyle}"
+                           Foreground="{DynamicResource SpkStateWarningFgBrush}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding HasApiKeyWarning, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+
+            <!-- Modelo block: ComboBox con AvailableModels para OpenAI/Groq, TextBox libre
+                 para Custom (no podemos predecir qué modelo trae un endpoint custom). Mismo
+                 patrón que el step del onboarding — los dos controles superpuestos en un Grid,
+                 visibility por IsCustomPreset. -->
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Modelo" Style="{StaticResource FieldLabelStyle}" />
+                <Grid>
+                    <ComboBox ItemsSource="{Binding AvailableModels}"
+                              SelectedItem="{Binding Model}"
+                              IsEnabled="{Binding IsNotBusyTesting}"
+                              FontFamily="{DynamicResource SpkFontGeistMono}"
+                              FontSize="13">
+                        <ComboBox.Style>
+                            <Style TargetType="ComboBox" BasedOn="{StaticResource SpkComboBoxStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCustomPreset}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ComboBox.Style>
+                    </ComboBox>
+                    <TextBox Style="{StaticResource SpkTextBoxMonoStyle}"
+                             Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsNotBusyTesting}"
+                             Visibility="{Binding IsCustomPreset, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+            </StackPanel>
+        </Grid>
+
+        <!-- Botones: Probar conexión + Guardar cambios. -->
+        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+            <Button Style="{StaticResource SpkSecondaryButtonStyle}"
+                    Command="{Binding TestConnectionCommand}"
+                    Content="Probar conexión"
+                    Margin="0,0,8,0" />
+            <Button Style="{StaticResource SpkPrimaryButtonStyle}"
+                    Command="{Binding SaveCommand}"
+                    Content="Guardar cambios" />
+        </StackPanel>
+
+        <!-- Status del test (Probando.../OK con timestamp/Error con mensaje). -->
+        <StackPanel Margin="0,16,0,0"
+                    Visibility="{Binding IsConnectionStatusVisible, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeBodySmStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ConnectionStatus}" Value="Ok">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}" />
+                                    <Setter Property="Text" Value="✓ " />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatus}" Value="Error">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}" />
+                                    <Setter Property="Text" Value="✕ " />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatus}" Value="Testing">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+                                    <Setter Property="Text" Value="⋯ " />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding ConnectionMessage}"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeBodySmStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ConnectionStatus}" Value="Ok">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatus}" Value="Error">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Style="{StaticResource SpkTypeCaptionStyle}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0"
+                           Visibility="{Binding IsConnectionOk, Converter={StaticResource BoolToVis}}">
+                    <Run Text="·" />
+                    <Run Text="{Binding ConnectionTestedAtFormatted, Mode=OneWay}" />
+                </TextBlock>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- SaveError inline (errores de DPAPI / settings). -->
+        <TextBlock Text="{Binding SaveError}"
+                   Style="{StaticResource SpkTypeBodySmStyle}"
+                   Foreground="{DynamicResource SpkStateErrorFgBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,12,0,0"
+                   Visibility="{Binding HasSaveError, Converter={StaticResource BoolToVis}}" />
+
     </StackPanel>
 </UserControl>

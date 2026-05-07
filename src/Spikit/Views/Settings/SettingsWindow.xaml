@@ -375,7 +375,8 @@
                                 Visibility="{Binding IsGeneralSection, Converter={StaticResource BoolToVis}}"/>
                             <sections:ProviderSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
-                                Visibility="{Binding IsProviderSection, Converter={StaticResource BoolToVis}}"/>
+                                DataContext="{Binding Provider}"
+                                Visibility="{Binding DataContext.IsProviderSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:HotkeySectionView
                                 Style="{StaticResource SectionTransitionStyle}"
                                 Visibility="{Binding IsHotkeySection, Converter={StaticResource BoolToVis}}"/>

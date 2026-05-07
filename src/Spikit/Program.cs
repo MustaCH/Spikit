@@ -70,6 +70,7 @@ public static class Program
                     // que mantener referencia a la window viva para el bring-to-front.
                     services.AddTransient<SettingsWindow>();
                     services.AddTransient<SettingsViewModel>();
+                    services.AddTransient<Spikit.ViewModels.Settings.Sections.ProviderSectionViewModel>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
 
                     // TrayIcon (EP-4.2) — singleton inicializado en App.EnterMainAppMode.

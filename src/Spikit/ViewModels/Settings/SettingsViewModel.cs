@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Spikit.ViewModels.Settings.Sections;
 
 namespace Spikit.ViewModels.Settings;
 
@@ -8,20 +9,26 @@ namespace Spikit.ViewModels.Settings;
 // - Flags `IsXxxSelected` para que cada item del sidebar se resalte como activo.
 // - `NavigateToCommand` parametrizado para los clicks del sidebar (uno por sección).
 //
-// Las secciones reales (Provider, Hotkey, General, Audio, Privacy, History, Plan, About)
-// se cablean en EP-4.3 a EP-4.9. Cuando esos VMs aterricen, deberían inyectarse acá como
-// parámetros del constructor y exponerse como propiedades públicas — mismo patrón que
-// OnboardingViewModel con Provider/Hotkey/Prueba.
+// Section VMs inyectados: cada uno se expone como property pública para que el XAML
+// haga DataContext="{Binding Xxx}" en cada UserControl (mismo patrón que OnboardingViewModel
+// con Provider/Hotkey/Prueba). EP-4.3 cableó Provider; el resto entra cuando aterricen
+// EP-4.4 a EP-4.9.
 public sealed class SettingsViewModel : ViewModelBase
 {
     private readonly ILogger<SettingsViewModel> _logger;
     private SettingsSection _currentSection = SettingsSection.General;
 
-    public SettingsViewModel(ILogger<SettingsViewModel> logger)
+    public SettingsViewModel(
+        ILogger<SettingsViewModel> logger,
+        ProviderSectionViewModel provider)
     {
         _logger = logger;
+        Provider = provider;
         NavigateToCommand = new RelayCommand<SettingsSection>(NavigateTo);
     }
+
+    // Section VMs — expuestos como properties para DataContext-binding desde el XAML.
+    public ProviderSectionViewModel Provider { get; }
 
     public SettingsSection CurrentSection
     {
