@@ -41,6 +41,9 @@ public class DictationOrchestratorTests
     private void RaiseHotkeyReleased() =>
         _hotkey.Raise(h => h.HotkeyReleased += null, this, EventArgs.Empty);
 
+    private void RaiseCancelHotkeyPressed() =>
+        _hotkey.Raise(h => h.CancelHotkeyPressed += null, this, EventArgs.Empty);
+
     private void RaiseSamples(short[] samples) =>
         _audio.Raise(a => a.SamplesAvailable += null, this, samples);
 
@@ -264,6 +267,94 @@ public class DictationOrchestratorTests
 
         _transcription.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Once);
         _insertion.Verify(i => i.InsertIntoForegroundAsync("toggle test", It.IsAny<IntPtr>()), Times.Once);
+    }
+
+    // ===== Esc cancel global (Q-7) =====
+
+    [Fact]
+    public void Recording_state_registers_cancel_hotkey()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        BuildAndStart();
+        RaiseHotkeyPressed();
+
+        _hotkey.Verify(h => h.RegisterCancelHotkey(), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task Cancel_hotkey_in_Recording_stops_audio_and_returns_to_Idle()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+
+        RaiseCancelHotkeyPressed();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _audio.Verify(a => a.StopAsync(), Times.AtLeastOnce);
+        // Transcription NO se invoca: el buffer se descarta antes de tocar Whisper.
+        _transcription.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Cancel_hotkey_in_Recording_unregisters_cancel_hotkey_after_Idle()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseCancelHotkeyPressed();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _hotkey.Verify(h => h.UnregisterCancelHotkey(), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task Cancel_hotkey_during_Transcribing_aborts_transcription()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        // Whisper bloquea hasta que el token se cancele (simula request en vuelo).
+        var transcribeStarted = new TaskCompletionSource();
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .Returns(async (byte[] _, CancellationToken ct) =>
+            {
+                transcribeStarted.TrySetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+                return string.Empty;
+            });
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+
+        await transcribeStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(DictationState.Transcribing, orchestrator.State);
+
+        RaiseCancelHotkeyPressed();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        // Insertion NO se llama (el TranscribeAsync nunca devolvió texto, el cancel atrapado
+        // en el orchestrator devuelve antes del path de inserción).
+        _insertion.Verify(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()), Times.Never);
+    }
+
+    [Fact]
+    public void Cancel_hotkey_when_Idle_is_no_op()
+    {
+        var orchestrator = BuildAndStart();
+
+        RaiseCancelHotkeyPressed();
+
+        Assert.Equal(DictationState.Idle, orchestrator.State);
+        _audio.Verify(a => a.StopAsync(), Times.Never);
     }
 
     private static async Task WaitForState(DictationOrchestrator orchestrator, DictationState target, int timeoutMs = 500)

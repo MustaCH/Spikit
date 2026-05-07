@@ -379,7 +379,8 @@
                                 Visibility="{Binding DataContext.IsProviderSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:HotkeySectionView
                                 Style="{StaticResource SectionTransitionStyle}"
-                                Visibility="{Binding IsHotkeySection, Converter={StaticResource BoolToVis}}"/>
+                                DataContext="{Binding Hotkey}"
+                                Visibility="{Binding DataContext.IsHotkeySection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:AudioSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
                                 Visibility="{Binding IsAudioSection, Converter={StaticResource BoolToVis}}"/>

@@ -71,6 +71,7 @@ public static class Program
                     services.AddTransient<SettingsWindow>();
                     services.AddTransient<SettingsViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.ProviderSectionViewModel>();
+                    services.AddTransient<Spikit.ViewModels.Settings.Sections.HotkeySectionViewModel>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
 
                     // TrayIcon (EP-4.2) — singleton inicializado en App.EnterMainAppMode.
@@ -147,6 +148,11 @@ public static class Program
                     services.AddTransient<FloatingResultViewModel>();
                     services.AddSingleton<IFloatingResultPresenter, WpfFloatingResultPresenter>();
                     services.AddSingleton<DictationOrchestrator>();
+                    // Demo mode (EP-4.4) — la implementación es el mismo singleton del orchestrator;
+                    // exponemos la interfaz por separado para que la sección Hotkey pueda
+                    // depender solo del subset que usa (BeginDemoMode/EndDemoMode + evento).
+                    services.AddSingleton<IDictationDemoMode>(sp =>
+                        sp.GetRequiredService<DictationOrchestrator>());
                 })
                 .Build();
 

@@ -40,6 +40,31 @@ public interface IHotkeyService : IDisposable
     // disparar este método cerraría la sesión inmediatamente al primer poll. Si está pausado
     // o ya hay una sesión abierta, es un no-op.
     void TriggerManualPress();
+
+    // Hotkey global secundario para cancelar una sesión de dictado activa (Q-7 / Esc cancela
+    // en initializing/recording/transcribing). Se registra solo durante esos estados y se
+    // libera en Idle/Inserting para no robar Esc al resto de las apps. Usa un id de Win32
+    // distinto del hotkey principal — sin modificadores, fsModifiers=0, VK_ESCAPE.
+    //
+    // Idempotente: registrar de nuevo si ya está registrado es no-op; unregister sin haber
+    // registrado tampoco rompe nada. Si Win32 rechaza el registro (otra app reservó Esc
+    // sin modificadores), se loguea warning pero no se propaga — la sesión sigue funcionando
+    // sin cancel global, y el usuario tiene la alternativa del re-press del hotkey (CB-2).
+    void RegisterCancelHotkey();
+    void UnregisterCancelHotkey();
+    event EventHandler? CancelHotkeyPressed;
+
+    // Suspende temporalmente la registración Win32 del hotkey principal mientras un campo
+    // de captura está abierto en la UI. Sin esto, si el usuario quiere recapturar la misma
+    // combinación que ya está activa (ej. cambiar Ctrl+M → Ctrl+Alt+M cuando Ctrl+Alt+M era
+    // la previa), Win32 se traga el press antes de que WPF lo entregue como KeyDown al
+    // HotkeyCaptureField — y la app empieza a grabar en vez de capturar la nueva combo.
+    //
+    // Suspend libera la combinación al OS y guarda la referencia. Resume la re-registra.
+    // Si la app se cierra entre uno y otro (raro), el cleanup del Dispose normal alcanza.
+    // Idempotente: llamar Suspend dos veces seguidas o Resume sin Suspend previo es no-op.
+    void SuspendForCapture();
+    void ResumeFromCapture();
 }
 
 public sealed class HotkeyRegistrationException : Exception

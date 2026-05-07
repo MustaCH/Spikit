@@ -46,6 +46,13 @@ public partial class HotkeyCaptureField : UserControl, INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    // Disparados cuando IsCapturing transiciona. Los consumers (HotkeySectionView en Settings)
+    // suspenden/resumen el hotkey global mientras está abierto el campo, así un re-press de
+    // la combinación activa actual no es interceptado por Win32 antes de llegar al campo.
+    // En contextos sin hotkey global activo (onboarding) los listeners pueden ignorarlos.
+    public event EventHandler? CaptureStarted;
+    public event EventHandler? CaptureEnded;
+
     public HotkeyDefinition? Hotkey
     {
         get => (HotkeyDefinition?)GetValue(HotkeyProperty);
@@ -64,6 +71,9 @@ public partial class HotkeyCaptureField : UserControl, INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowHotkey));
             OnPropertyChanged(nameof(ShowEditButton));
             OnPropertyChanged(nameof(ShowEmptyPlaceholder));
+
+            if (value) CaptureStarted?.Invoke(this, EventArgs.Empty);
+            else CaptureEnded?.Invoke(this, EventArgs.Empty);
         }
     }
 

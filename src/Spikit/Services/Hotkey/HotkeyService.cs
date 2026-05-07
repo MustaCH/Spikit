@@ -10,6 +10,7 @@ namespace Spikit.Services.Hotkey;
 public sealed class HotkeyService : IHotkeyService
 {
     private const int HotkeyId = 0xB001;
+    private const int CancelHotkeyId = 0xB002;
     private static readonly TimeSpan ReleasePollInterval = TimeSpan.FromMilliseconds(30);
 
     private readonly ILogger<HotkeyService> _logger;
@@ -19,12 +20,15 @@ public sealed class HotkeyService : IHotkeyService
     private HwndSourceHook? _hook;
     private DispatcherTimer? _releaseTimer;
     private HotkeyDefinition? _registered;
+    private HotkeyDefinition? _suspendedRegistration;
+    private bool _cancelHotkeyRegistered;
     private bool _isPressed;
     private bool _isPaused;
     private bool _disposed;
 
     public event EventHandler? HotkeyPressed;
     public event EventHandler? HotkeyReleased;
+    public event EventHandler? CancelHotkeyPressed;
     public event EventHandler? PausedChanged;
 
     public HotkeyDefinition? CurrentRegistration => _registered;
@@ -91,11 +95,77 @@ public sealed class HotkeyService : IHotkeyService
         _isPressed = false;
     }
 
+    public void RegisterCancelHotkey()
+    {
+        EnsureNotDisposed();
+        if (_cancelHotkeyRegistered) return;
+
+        EnsureSink();
+
+        // Esc puro (sin modificadores). MOD_NOREPEAT evita que mantener Esc apretado dispare
+        // múltiples eventos. Si otra app tiene Esc reservado a nivel global (raro), Win32
+        // lo rechaza y lo logueamos warning sin propagar — el cancel queda no disponible
+        // para esa sesión, pero el dictado sigue funcional.
+        var modifiers = (uint)HotkeyModifiers.NoRepeat;
+        if (!User32.RegisterHotKey(_sink!.Handle, CancelHotkeyId, modifiers, VirtualKeys.Escape))
+        {
+            var error = Marshal.GetLastWin32Error();
+            _logger.LogWarning("RegisterHotKey de Esc cancel falló (Win32 error {Error}). Sesión sin cancel global.", error);
+            return;
+        }
+
+        _cancelHotkeyRegistered = true;
+        _logger.LogDebug("Cancel hotkey (Esc) registrado");
+    }
+
+    public void UnregisterCancelHotkey()
+    {
+        if (!_cancelHotkeyRegistered || _sink is null) return;
+
+        User32.UnregisterHotKey(_sink.Handle, CancelHotkeyId);
+        _cancelHotkeyRegistered = false;
+        _logger.LogDebug("Cancel hotkey (Esc) liberado");
+    }
+
+    public void SuspendForCapture()
+    {
+        EnsureNotDisposed();
+        // Idempotente: si ya estamos suspendidos, no pisamos la referencia previa.
+        if (_suspendedRegistration is not null) return;
+        if (_registered is null) return;
+
+        _suspendedRegistration = _registered;
+        Unregister();
+        _logger.LogDebug("Hotkey suspendido para captura: {Hotkey}", _suspendedRegistration);
+    }
+
+    public void ResumeFromCapture()
+    {
+        if (_suspendedRegistration is null) return;
+        var def = _suspendedRegistration;
+        _suspendedRegistration = null;
+
+        try
+        {
+            Register(def);
+            _logger.LogDebug("Hotkey re-registrado tras captura: {Hotkey}", def);
+        }
+        catch (HotkeyRegistrationException ex)
+        {
+            // Caso raro: otra app tomó la combinación durante el capture. Logueamos warning
+            // y seguimos — la sesión queda sin hotkey activo, el usuario va a tener que
+            // cambiarlo desde Settings. No queremos romper el flow del usuario que está en
+            // Settings tipeando.
+            _logger.LogWarning(ex, "No se pudo re-registrar hotkey tras captura ({Hotkey})", def);
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
 
+        UnregisterCancelHotkey();
         Unregister();
 
         if (_sink is not null)
@@ -127,7 +197,21 @@ public sealed class HotkeyService : IHotkeyService
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg != WindowMessages.WM_HOTKEY || wParam.ToInt32() != HotkeyId) return IntPtr.Zero;
+        if (msg != WindowMessages.WM_HOTKEY) return IntPtr.Zero;
+
+        var id = wParam.ToInt32();
+
+        // Cancel hotkey (Esc): solo registrado durante estados cancelables. La pausa NO
+        // bloquea el cancel — si el usuario pausó pero hay un dictado en curso, Esc tiene
+        // que poder cortarlo igual.
+        if (id == CancelHotkeyId)
+        {
+            handled = true;
+            CancelHotkeyPressed?.Invoke(this, EventArgs.Empty);
+            return IntPtr.Zero;
+        }
+
+        if (id != HotkeyId) return IntPtr.Zero;
 
         handled = true;
 

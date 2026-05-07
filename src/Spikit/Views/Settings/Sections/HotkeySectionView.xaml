@@ -3,32 +3,224 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Spikit.Views.Controls"
              mc:Ignorable="d"
+             Focusable="True"
              Background="Transparent">
-    <!-- Placeholder de la sección Hotkey. Implementación real en EP-4.4
-         (precarga + cambio combo/modo + Probar (modo demo) + Guardar). -->
-    <StackPanel>
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- RadioButton custom: idéntico al SpkRadioStyle del HotkeyStepView. Lo duplico inline
+             porque vive como style local del step y no en Resources/Themes/Components/Form.xaml
+             todavía — cuando se haga el pulido visual de EP-6 conviene migrarlo a global. -->
+        <Style x:Key="SpkRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="OuterBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <StackPanel Orientation="Horizontal">
+                                <Grid Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,12,0">
+                                    <Ellipse x:Name="OuterCircle"
+                                             Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                             StrokeThickness="1.5"
+                                             Fill="Transparent" />
+                                    <Ellipse x:Name="InnerDot"
+                                             Width="9" Height="9"
+                                             Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                             Opacity="0" />
+                                </Grid>
+                                <ContentPresenter VerticalAlignment="Top" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="OuterBorder" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="OuterBorder" Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="InnerDot" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="OuterBorder" Property="Opacity" Value="0.5" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+
         <TextBlock Text="Hotkey"
                    Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="Combinación global y modo (Push-to-talk / Toggle)."
+                   Margin="0,0,0,8" />
+        <TextBlock Text="Combinación global y modo (Push-to-talk / Toggle). Probá antes de guardar para confirmar que el sistema la reconoce."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,24" />
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
+        <!-- Combinación: HotkeyCaptureField + warning inline si HasWarning. -->
+        <TextBlock Text="Combinación" Style="{StaticResource FieldLabelStyle}" />
+        <controls:HotkeyCaptureField x:Name="CaptureField"
+                                     Hotkey="{Binding Hotkey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding IsEditable}"
+                                     Margin="0,0,0,4" />
+
+        <Grid Margin="0,2,0,20">
+            <TextBlock TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                        <Setter Property="Margin" Value="0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasWarning}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+                <Run Text="Recomendadas:" FontWeight="Medium" />
+                <Run Text=" Ctrl+Alt + una letra (ej. Ctrl+Alt+M, Ctrl+Alt+J). " />
+                <LineBreak />
+                <Run Text="Evitá:" FontWeight="Medium" />
+                <Run Text=" combinaciones con Win (Win+L, Win+R, etc. las captura Windows antes que la app) y F1–F12 solas (las usan muchas apps)." />
+            </TextBlock>
+
+            <TextBlock Text="{Binding WarningMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasWarning, Converter={StaticResource BoolToVis}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                        <Setter Property="Foreground" Value="{DynamicResource SpkStateWarningFgBrush}" />
+                        <Setter Property="Margin" Value="0" />
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+
+        <!-- Modo: dos radios apilados. Mismo layout que el step del onboarding. -->
+        <TextBlock Text="Modo" Style="{StaticResource FieldLabelStyle}" />
+        <RadioButton GroupName="HotkeySectionMode"
+                     Style="{StaticResource SpkRadioStyle}"
+                     IsEnabled="{Binding IsEditable}"
+                     IsChecked="{Binding IsPushToTalk, Mode=TwoWay}">
             <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
+                <TextBlock Text="Push-to-talk"
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="14"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}" />
+                <TextBlock Text="Mantené apretadas las teclas mientras hablás."
+                           Margin="0,2,0,0"
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="13"
                            Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.4."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
+                           TextWrapping="Wrap" />
             </StackPanel>
+        </RadioButton>
+        <RadioButton GroupName="HotkeySectionMode"
+                     Style="{StaticResource SpkRadioStyle}"
+                     IsEnabled="{Binding IsEditable}"
+                     IsChecked="{Binding IsToggle, Mode=TwoWay}">
+            <StackPanel>
+                <TextBlock Text="Toggle"
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="14"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}" />
+                <TextBlock Text="Una pulsación para empezar, otra para terminar."
+                           Margin="0,2,0,0"
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="13"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </RadioButton>
+
+        <!-- Botones: Probar (modo demo) + Guardar cambios. -->
+        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+            <Button Style="{StaticResource SpkSecondaryButtonStyle}"
+                    Command="{Binding TestCommand}"
+                    Content="Probar"
+                    Margin="0,0,8,0" />
+            <Button Style="{StaticResource SpkPrimaryButtonStyle}"
+                    Command="{Binding SaveCommand}"
+                    Content="Guardar cambios" />
+        </StackPanel>
+
+        <!-- Toast inline del modo demo: mientras IsDemoActive, muestra "Probá tu hotkey ahora —
+             Esc para cancelar". Al detectarse el press, muta a "✓ Hotkey detectado" (success)
+             y auto-dismiss a 1.5s. Si pasan ~5s sin press, muta a warning ámbar
+             ("⚠ No detectamos tu press…") y auto-dismiss a 4s. -->
+        <Border Margin="0,16,0,0"
+                Padding="14,10"
+                CornerRadius="6"
+                BorderThickness="1"
+                Visibility="{Binding IsDemoActive, Converter={StaticResource BoolToVis}}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ToastIsSuccess}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource SpkStateSuccessBgBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource SpkStateSuccessFgBrush}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ToastIsWarning}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource SpkStateWarningBgBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource SpkStateWarningFgBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding ToastMessage}"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ToastIsSuccess}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ToastIsWarning}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource SpkStateWarningFgBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </Border>
+
+        <!-- SaveError inline: CB-7 (combinación tomada por otra app) o falla de JsonSettings. -->
+        <TextBlock Text="{Binding SaveError}"
+                   TextWrapping="Wrap"
+                   Margin="0,12,0,0"
+                   Visibility="{Binding HasSaveError, Converter={StaticResource BoolToVis}}">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                    <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}" />
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
     </StackPanel>
 </UserControl>

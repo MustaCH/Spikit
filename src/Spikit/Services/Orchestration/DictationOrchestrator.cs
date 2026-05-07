@@ -13,11 +13,12 @@ namespace Spikit.Services.Orchestration;
 // Coordina el flow completo del dictado. State machine explícita Idle → Recording →
 // Transcribing → Inserting → Idle (o ShowingFloatingResult si paste falla).
 // Decisiones de comportamiento en docs/architecture.md § "Arquitectura del feature crítico".
-public sealed class DictationOrchestrator : IDisposable
+public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
 {
     private const int SampleRateHz = 16_000;
     private const int MinSessionSamples = SampleRateHz / 2; // 500 ms — CB-4
     private static readonly TimeSpan MaxRecordingDuration = TimeSpan.FromMinutes(10); // RN-8
+    private static readonly TimeSpan DemoFlashDuration = TimeSpan.FromMilliseconds(600);
 
     private readonly IHotkeyService _hotkey;
     private readonly IAudioCaptureService _audio;
@@ -34,6 +35,17 @@ public sealed class DictationOrchestrator : IDisposable
     private HotkeyMode _mode = HotkeyMode.PushToTalk;
     private IntPtr _targetHwnd;
     private CancellationTokenSource? _recordingTimeoutCts;
+    // Token vinculado a la sesión completa (Recording → Transcribing). Lo cancela
+    // CancelSessionAsync (Esc cancel global de Q-7). Distinto del recordingTimeoutCts
+    // — ese se cancela al final de la grabación normal y abortaría el TranscribeAsync
+    // si lo compartiéramos.
+    private CancellationTokenSource? _sessionCts;
+    private bool _isDemoMode;
+    // True solo durante el flash visual de RunDemoFlashAsync. Lo consulta
+    // UpdateCancelHotkeyRegistration para no registrar Esc-cancel global durante el demo
+    // (no hay sesión real que cancelar; el HotkeySectionView atrapa Esc localmente vía
+    // PreviewKeyDown para cerrar el toast).
+    private bool _demoFlashing;
     private bool _started;
     private bool _disposed;
 
@@ -68,6 +80,31 @@ public sealed class DictationOrchestrator : IDisposable
         _logger.LogInformation("Dictation mode → {Mode}", mode);
     }
 
+    // ============ Demo mode (EP-4.4) ============
+
+    public bool IsDemoMode => _isDemoMode;
+
+    public event EventHandler? DemoHotkeyDetected;
+
+    // Activa el modo demo. Mientras esté activo, el próximo HotkeyPressed no inicia sesión
+    // real — solo emite DemoHotkeyDetected y simula el flash visual de la pill. El flag se
+    // auto-desactiva al completar el flash. EndDemoMode se llama solo si el usuario cancela
+    // antes de apretar (Esc en la sección Settings → Hotkey).
+    public void BeginDemoMode()
+    {
+        EnsureNotDisposed();
+        if (_isDemoMode) return;
+        _isDemoMode = true;
+        _logger.LogInformation("Dictation orchestrator: modo demo activo");
+    }
+
+    public void EndDemoMode()
+    {
+        if (!_isDemoMode) return;
+        _isDemoMode = false;
+        _logger.LogInformation("Dictation orchestrator: modo demo desactivado");
+    }
+
     // Disparado en cada transición de estado. La pill se suscribe acá para refrescar visual.
     public event EventHandler<DictationState>? StateChanged;
 
@@ -90,6 +127,7 @@ public sealed class DictationOrchestrator : IDisposable
         // o el HotkeyConfigWriter cuando el usuario cambia la combinación.
         _hotkey.HotkeyPressed += OnHotkeyPressed;
         _hotkey.HotkeyReleased += OnHotkeyReleased;
+        _hotkey.CancelHotkeyPressed += OnCancelHotkeyPressed;
         _audio.SamplesAvailable += OnSamplesAvailable;
     }
 
@@ -100,6 +138,7 @@ public sealed class DictationOrchestrator : IDisposable
 
         _hotkey.HotkeyPressed -= OnHotkeyPressed;
         _hotkey.HotkeyReleased -= OnHotkeyReleased;
+        _hotkey.CancelHotkeyPressed -= OnCancelHotkeyPressed;
         _audio.SamplesAvailable -= OnSamplesAvailable;
 
         // El hotkey lo libera el dueño del registro: HotkeyService.Dispose en App.OnExit
@@ -114,10 +153,26 @@ public sealed class DictationOrchestrator : IDisposable
         Stop();
         _recordingTimeoutCts?.Cancel();
         _recordingTimeoutCts?.Dispose();
+        _sessionCts?.Cancel();
+        _sessionCts?.Dispose();
     }
 
     private async void OnHotkeyPressed(object? sender, EventArgs e)
     {
+        // Modo demo (EP-4.4): cortocircuita ANTES de cualquier otra cosa. No iniciamos
+        // AudioCapture/Whisper, solo emitimos el detected event + simulamos el flash de la
+        // pill (Recording → 600 ms → Idle). La pill ya escucha StateChanged, por lo que aparece
+        // en visual mode "Initializing" (3 dots gris) — feedback razonable de "el OS detectó
+        // tu combinación". El audio nunca arranca, OnSamplesAvailable no recibe nada.
+        if (_isDemoMode)
+        {
+            _isDemoMode = false; // auto-desactiva: un press = un flash, no se queda enganchado.
+            _logger.LogDebug("Demo mode: HotkeyPressed detectado, flash simulado (sin AudioCapture)");
+            DemoHotkeyDetected?.Invoke(this, EventArgs.Empty);
+            _ = RunDemoFlashAsync();
+            return;
+        }
+
         // Toggle (V1 nuevo, EP-3.6): segundo press mientras estamos Recording = stop.
         // El primer press en estado Idle cae al flujo normal abajo.
         if (_mode == HotkeyMode.Toggle && _state == DictationState.Recording)
@@ -140,12 +195,59 @@ public sealed class DictationOrchestrator : IDisposable
 
         lock (_bufferLock) _sessionBuffer.Clear();
 
+        // _sessionCts es para cancel via Esc (Q-7): vive desde el press hasta que la sesión
+        // termina (normal o cancelada). El TranscribeAsync recibe su token; CancelSessionAsync
+        // lo cancela para abortar tanto el recording como un transcribe en vuelo.
+        _sessionCts?.Dispose();
+        _sessionCts = new CancellationTokenSource();
+
         TransitionTo(DictationState.Recording);
         EmitPillMessage("Grabando…");
 
         _recordingTimeoutCts?.Dispose();
         _recordingTimeoutCts = new CancellationTokenSource();
         _ = StartRecordingAsync(_recordingTimeoutCts.Token);
+    }
+
+    private async void OnCancelHotkeyPressed(object? sender, EventArgs e)
+    {
+        // Q-7: Esc cancela en Recording y Transcribing. NO en Inserting (corre invisible
+        // en background tras D-9 y cancelarlo dejaría un Ctrl+V parcial). El cancel hotkey
+        // solo está registrado durante esos estados, así que en teoría no llegaríamos acá
+        // en otros estados — el guard es defensivo.
+        if (_state != DictationState.Recording && _state != DictationState.Transcribing)
+        {
+            _logger.LogDebug("Cancel hotkey ignorado, estado actual: {State}", _state);
+            return;
+        }
+
+        _logger.LogInformation("Cancel hotkey (Esc) recibido en estado {State} — cancelando sesión", _state);
+        await CancelSessionAsync().ConfigureAwait(true);
+    }
+
+    private async Task CancelSessionAsync()
+    {
+        // Cancelamos los dos tokens: recordingTimeoutCts aborta el Task.Delay(10 min) si
+        // estamos en Recording, sessionCts aborta el TranscribeAsync si estamos en Transcribing.
+        _recordingTimeoutCts?.Cancel();
+        _sessionCts?.Cancel();
+
+        try
+        {
+            await _audio.StopAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AudioCapture.StopAsync falló durante cancel");
+        }
+
+        // RN-1: descartar el audio capturado. La sesión se trunca silenciosa, sin floating
+        // result ni toast — el usuario apretó Esc explícitamente.
+        lock (_bufferLock) _sessionBuffer.Clear();
+
+        // El TransitionTo a Idle desregistra el cancel hotkey vía UpdateCancelHotkeyRegistration
+        // y la pill se va con leaving (StateChanged dispara el VM).
+        TransitionTo(DictationState.Idle);
     }
 
     private async Task StartRecordingAsync(CancellationToken ct)
@@ -231,13 +333,22 @@ public sealed class DictationOrchestrator : IDisposable
 
         var sw = Stopwatch.StartNew();
         string transcribedText;
+        var transcribeToken = _sessionCts?.Token ?? CancellationToken.None;
         try
         {
             var wav = WavWriter.WriteWavFromPcm16(snapshot, SampleRateHz, channels: 1);
-            transcribedText = await _transcription.TranscribeAsync(wav, CancellationToken.None).ConfigureAwait(true);
+            transcribedText = await _transcription.TranscribeAsync(wav, transcribeToken).ConfigureAwait(true);
             _logger.LogInformation(
                 "Whisper OK en {DurationMs} ms ({SampleMs} ms de audio): {Text}",
                 sw.ElapsedMilliseconds, snapshot.Length * 1000 / SampleRateHz, transcribedText);
+        }
+        catch (OperationCanceledException)
+        {
+            // Q-7: el usuario apretó Esc durante Transcribing. CancelSessionAsync ya hizo
+            // todo el cleanup (TransitionTo Idle, descartar buffer); acá solo evitamos
+            // continuar al insertion path. La pill ya está en leaving.
+            _logger.LogInformation("Transcripción cancelada por Esc (Q-7)");
+            return;
         }
         catch (TranscriptionException ex)
         {
@@ -308,12 +419,64 @@ public sealed class DictationOrchestrator : IDisposable
         lock (_bufferLock) _sessionBuffer.AddRange(samples);
     }
 
+    private async Task RunDemoFlashAsync()
+    {
+        // Solo dispara la pill si estamos en Idle. Si por algún motivo el orchestrator
+        // tiene otra sesión activa (raro: implica que el usuario abrió Settings durante
+        // un dictado), no la interrumpimos.
+        if (_state != DictationState.Idle) return;
+
+        _demoFlashing = true;
+        try
+        {
+            TransitionTo(DictationState.Recording);
+            try
+            {
+                await Task.Delay(DemoFlashDuration).ConfigureAwait(true);
+            }
+            catch (TaskCanceledException) { /* ignore */ }
+            // Si en el ínterin arrancó una sesión real (imposible bajo el flujo demo, pero
+            // defensivo), no pisamos su estado.
+            if (_state == DictationState.Recording)
+            {
+                TransitionTo(DictationState.Idle);
+            }
+        }
+        finally
+        {
+            _demoFlashing = false;
+        }
+    }
+
     private void TransitionTo(DictationState next)
     {
         if (_state == next) return;
         _logger.LogDebug("State {From} → {To}", _state, next);
         _state = next;
+        UpdateCancelHotkeyRegistration(next);
         StateChanged?.Invoke(this, next);
+    }
+
+    // Cancel hotkey (Esc) solo registrado durante estados cancelables. Q-7 exige Recording
+    // y Transcribing (Initializing es sub-estado del audio cubierto por Recording del
+    // orchestrator). Inserting NO — es muy corto y cancelarlo dejaría Ctrl+V parcial.
+    // Idempotente: el HotkeyService no falla si registramos dos veces seguidas o
+    // desregistramos sin haber registrado.
+    private void UpdateCancelHotkeyRegistration(DictationState state)
+    {
+        // Durante el demo flash no registramos cancel global — no hay sesión real que abortar
+        // y la sección Settings → Hotkey ya atrapa Esc localmente via PreviewKeyDown.
+        if (_demoFlashing) return;
+
+        var cancelable = state is DictationState.Recording or DictationState.Transcribing;
+        if (cancelable)
+        {
+            _hotkey.RegisterCancelHotkey();
+        }
+        else
+        {
+            _hotkey.UnregisterCancelHotkey();
+        }
     }
 
     private void EmitPillMessage(string message)

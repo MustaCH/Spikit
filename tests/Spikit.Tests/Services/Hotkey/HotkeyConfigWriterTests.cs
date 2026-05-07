@@ -122,7 +122,11 @@ public class HotkeyConfigWriterTests
 
         public event EventHandler? HotkeyPressed;
         public event EventHandler? HotkeyReleased;
+        public event EventHandler? CancelHotkeyPressed;
         public event EventHandler? PausedChanged;
+
+        public int RegisterCancelCalls { get; private set; }
+        public int UnregisterCancelCalls { get; private set; }
 
         public void Register(HotkeyDefinition definition)
         {
@@ -142,10 +146,20 @@ public class HotkeyConfigWriterTests
 
         public void TriggerManualPress() => HotkeyPressed?.Invoke(this, EventArgs.Empty);
 
+        public void RegisterCancelHotkey() => RegisterCancelCalls++;
+        public void UnregisterCancelHotkey() => UnregisterCancelCalls++;
+
+        public void SuspendForCapture() { /* no-op para los tests del config writer */ }
+        public void ResumeFromCapture() { /* idem */ }
+
         public void Dispose() { }
 
-        // Suprime warning de evento no usado.
-        private void Unused() { HotkeyReleased?.Invoke(this, EventArgs.Empty); }
+        // Suprime warnings de eventos no usados en este fake.
+        private void Unused()
+        {
+            HotkeyReleased?.Invoke(this, EventArgs.Empty);
+            CancelHotkeyPressed?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private sealed class FakeSettingsService : ISettingsService
