@@ -126,10 +126,10 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     // CanGoNext por paso. Welcome y Hotkey/Prueba siguen siendo `true` hasta que sus
     // sub-tasks (EP-3.5/3.7) los cablean. Provider exige IsConnectionOk del paso 1.1
-    // (EP-3.3 cierra ese requisito).
+    // (EP-3.3 cierra ese requisito) y que no estemos en medio de un Save (EP-3.4).
     public bool CanGoNext => CurrentStep switch
     {
-        OnboardingStep.Provider => Provider.IsConnectionOk,
+        OnboardingStep.Provider => Provider.IsConnectionOk && !Provider.IsSaving,
         _ => true,
     };
 
@@ -147,7 +147,41 @@ public sealed class OnboardingViewModel : ViewModelBase
             return;
         }
 
+        // Salir del paso Provider exige persistir la config (EP-3.4). El RelayCommand es
+        // sync, así que disparamos la corrutina y avanzamos solo cuando completa OK. Si
+        // falla, el VM mostró el error inline vía Provider.SaveError y nos quedamos en
+        // el mismo step.
+        if (CurrentStep == OnboardingStep.Provider)
+        {
+            _ = AdvanceFromProviderAsync();
+            return;
+        }
+
         CurrentStep = CurrentStep + 1;
+        _logger.LogDebug("Onboarding → {Step}", CurrentStep);
+    }
+
+    private async Task AdvanceFromProviderAsync()
+    {
+        // Re-checkear el guard porque GoNext es disparado por el CommandManager y entre el
+        // CanGoNext check y el await podríamos haber cambiado de step.
+        if (CurrentStep != OnboardingStep.Provider) return;
+
+        OnPropertyChanged(nameof(CanGoNext));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+
+        var ok = await Provider.SaveAsync().ConfigureAwait(true);
+
+        OnPropertyChanged(nameof(CanGoNext));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+
+        if (!ok)
+        {
+            _logger.LogInformation("Avance bloqueado en step Provider: SaveAsync devolvió false");
+            return;
+        }
+
+        CurrentStep = OnboardingStep.Hotkey;
         _logger.LogDebug("Onboarding → {Step}", CurrentStep);
     }
 

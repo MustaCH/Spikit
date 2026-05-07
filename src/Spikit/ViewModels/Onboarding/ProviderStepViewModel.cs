@@ -6,15 +6,19 @@ using Spikit.Services.Provider;
 
 namespace Spikit.ViewModels.Onboarding;
 
+
+
 // VM del paso 1 del onboarding (Provider). Expone los 4 campos editables (preset, base URL,
-// API key, model) + validación + comando "Probar conexión" + estado del feedback.
+// API key, model) + validación + comando "Probar conexión" + estado del feedback +
+// guardado transaccional al avanzar al paso 2 (EP-3.4).
 //
 // Comportamiento clave:
 // - Cambiar el preset autocompleta BaseUrl + Model con los defaults canónicos.
 // - Si el usuario edita BaseUrl o Model manualmente, el preset queda como `Custom` automáticamente.
 // - Editar cualquier campo invalida una prueba de conexión exitosa previa (US-1.1: hay que
 //   re-probar para volver a habilitar "Siguiente").
-// - ApiKey es un string plano en V1; persistir vía DPAPI lo hace EP-3.4.
+// - SaveAsync persiste vía IProviderConfigWriter (DPAPI + JsonSettings + reload runtime
+//   en una transacción lógica). Lo dispara el OnboardingViewModel al transicionar de paso.
 //
 // Validación sync de la API key (capa 1):
 //   - Vacía / whitespace puro              → error "API key vacía".
@@ -30,6 +34,7 @@ public sealed class ProviderStepViewModel : ViewModelBase
 
     private readonly ILogger<ProviderStepViewModel> _logger;
     private readonly IProviderConnectionTester _connectionTester;
+    private readonly IProviderConfigWriter _configWriter;
 
     // Suprime el auto-set a Custom mientras el VM está autocompletando los campos.
     private bool _isApplyingPreset;
@@ -49,12 +54,17 @@ public sealed class ProviderStepViewModel : ViewModelBase
     private string _connectionMessage = string.Empty;
     private DateTime? _connectionTestedAt;
 
+    private bool _isSaving;
+    private string _saveError = string.Empty;
+
     public ProviderStepViewModel(
         ILogger<ProviderStepViewModel> logger,
-        IProviderConnectionTester connectionTester)
+        IProviderConnectionTester connectionTester,
+        IProviderConfigWriter configWriter)
     {
         _logger = logger;
         _connectionTester = connectionTester;
+        _configWriter = configWriter;
 
         Presets = new ObservableCollection<ProviderPresetOption>(
             Enum.GetValues<ProviderPreset>()
@@ -234,6 +244,34 @@ public sealed class ProviderStepViewModel : ViewModelBase
         && !string.IsNullOrWhiteSpace(_apiKey)
         && !HasApiKeyError;
 
+    // Estado del guardado transaccional (EP-3.4). El OnboardingViewModel los lee para
+    // gatear el avance al paso 2 y para mostrar un spinner inline si IsSaving=true.
+    public bool IsSaving
+    {
+        get => _isSaving;
+        private set
+        {
+            if (SetProperty(ref _isSaving, value))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    public string SaveError
+    {
+        get => _saveError;
+        private set
+        {
+            if (SetProperty(ref _saveError, value))
+            {
+                OnPropertyChanged(nameof(HasSaveError));
+            }
+        }
+    }
+
+    public bool HasSaveError => !string.IsNullOrEmpty(_saveError);
+
     private static string ComputeApiKeyHardError(string apiKey)
     {
         if (string.IsNullOrWhiteSpace(apiKey)) return "La API key está vacía.";
@@ -369,6 +407,58 @@ public sealed class ProviderStepViewModel : ViewModelBase
         OnPropertyChanged(nameof(ApiKeySoftWarning));
         OnPropertyChanged(nameof(HasApiKeyError));
         OnPropertyChanged(nameof(HasApiKeyWarning));
+    }
+
+    // Persiste la config actual del form vía IProviderConfigWriter. Se invoca desde
+    // OnboardingViewModel.GoNext cuando el usuario sale del paso Provider — la transacción
+    // garantiza que si falla cualquier paso, el estado queda como antes (DPAPI sin la key
+    // nueva, JsonSettings sin actualizar).
+    //
+    // Devuelve true si el guardado fue OK; false si hubo error (en ese caso SaveError tiene
+    // el mensaje listo para mostrar inline). Si la conexión no fue probada (IsConnectionOk=false),
+    // tampoco persiste — el shell del onboarding ya bloquea ese caso vía CanGoNext.
+    public async Task<bool> SaveAsync(CancellationToken ct = default)
+    {
+        if (!IsConnectionOk)
+        {
+            SaveError = "Tenés que probar la conexión antes de avanzar.";
+            return false;
+        }
+
+        SaveError = string.Empty;
+        IsSaving = true;
+        try
+        {
+            var config = new ProviderConfig(
+                PresetId: ProviderPresetDefaults.ToPresetId(_selectedPreset),
+                BaseUrl: _baseUrl,
+                Model: _model,
+                ApiKey: _apiKey);
+
+            await _configWriter.SaveAsync(config, ct).ConfigureAwait(true);
+            _logger.LogInformation("Provider config persistida desde el step VM");
+            return true;
+        }
+        catch (ProviderConfigSaveException ex)
+        {
+            _logger.LogWarning(ex, "Guardado de provider config falló");
+            SaveError = ex.Message;
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error inesperado al guardar provider config");
+            SaveError = "Error inesperado al guardar la configuración. Probá de nuevo.";
+            return false;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 }
 

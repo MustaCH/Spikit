@@ -46,4 +46,14 @@ public sealed record ProviderPresetDefaults(string BaseUrl, string Model, Immuta
         ProviderPreset.Custom => "Custom",
         _ => preset.ToString(),
     };
+
+    // Identificador estable que persiste en provider.presetId del settings.json. Lowercase
+    // para que el JSON sea legible y no acoplado al orden del enum.
+    public static string ToPresetId(ProviderPreset preset) => preset switch
+    {
+        ProviderPreset.OpenAI => "openai",
+        ProviderPreset.Groq => "groq",
+        ProviderPreset.Custom => "custom",
+        _ => preset.ToString().ToLowerInvariant(),
+    };
 }

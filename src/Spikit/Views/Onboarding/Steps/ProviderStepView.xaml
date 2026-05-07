@@ -750,6 +750,20 @@
                         </TextBlock>
                     </StackPanel>
                 </StackPanel>
+
+                <!-- Save error inline (EP-3.4): visible solo si SaveAsync falló al avanzar al
+                     paso 2. Misma jerarquía visual que el error de conexión, pero anclado al
+                     final del form para que el usuario lo vea contiguo a "Siguiente". -->
+                <TextBlock Text="{Binding SaveError}"
+                           TextWrapping="Wrap"
+                           Margin="0,12,0,0"
+                           Visibility="{Binding HasSaveError, Converter={StaticResource BoolToVis}}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}"/>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </ScrollViewer>
     </Grid>

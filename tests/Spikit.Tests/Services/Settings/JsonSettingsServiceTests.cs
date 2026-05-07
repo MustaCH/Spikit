@@ -1,0 +1,124 @@
+using System.IO;
+using Microsoft.Extensions.Logging.Abstractions;
+using Spikit.Models;
+using Spikit.Services.Settings;
+
+namespace Spikit.Tests.Services.Settings;
+
+// Tests del file-system real (testing-strategy.md §Integration: "JsonSettingsService con
+// Path.GetTempPath()"). xUnit aísla cada test con un tmpdir único + IDisposable cleanup.
+public class JsonSettingsServiceTests : IDisposable
+{
+    private readonly string _tmpDir;
+    private readonly string _filePath;
+
+    public JsonSettingsServiceTests()
+    {
+        _tmpDir = Path.Combine(Path.GetTempPath(), "spikit-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_tmpDir);
+        _filePath = Path.Combine(_tmpDir, "settings.json");
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tmpDir))
+        {
+            Directory.Delete(_tmpDir, recursive: true);
+        }
+    }
+
+    private JsonSettingsService MakeService() =>
+        new(_filePath, NullLogger<JsonSettingsService>.Instance);
+
+    [Fact]
+    public void Load_returns_defaults_when_file_does_not_exist()
+    {
+        var svc = MakeService();
+
+        var result = svc.Load();
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Provider);
+        Assert.Equal("openai", result.Provider.PresetId);
+        Assert.Equal("https://api.openai.com/v1", result.Provider.BaseUrl);
+        Assert.Equal("whisper-1", result.Provider.Model);
+    }
+
+    [Fact]
+    public void Save_creates_file_and_directory_if_missing()
+    {
+        var nestedPath = Path.Combine(_tmpDir, "nested", "subdir", "settings.json");
+        var svc = new JsonSettingsService(nestedPath, NullLogger<JsonSettingsService>.Instance);
+        var settings = new AppSettings
+        {
+            Provider = new ProviderSettings { PresetId = "groq", BaseUrl = "https://api.groq.com/openai/v1", Model = "whisper-large-v3" },
+        };
+
+        svc.Save(settings);
+
+        Assert.True(File.Exists(nestedPath));
+    }
+
+    [Fact]
+    public void Roundtrip_preserves_provider_section()
+    {
+        var svc = MakeService();
+        var saved = new AppSettings
+        {
+            Provider = new ProviderSettings
+            {
+                PresetId = "groq",
+                BaseUrl = "https://api.groq.com/openai/v1",
+                Model = "whisper-large-v3-turbo",
+            },
+        };
+
+        svc.Save(saved);
+        var loaded = svc.Load();
+
+        Assert.Equal("groq", loaded.Provider.PresetId);
+        Assert.Equal("https://api.groq.com/openai/v1", loaded.Provider.BaseUrl);
+        Assert.Equal("whisper-large-v3-turbo", loaded.Provider.Model);
+    }
+
+    [Fact]
+    public void Save_writes_camelCase_property_names()
+    {
+        var svc = MakeService();
+        svc.Save(new AppSettings
+        {
+            Provider = new ProviderSettings { PresetId = "openai", BaseUrl = "https://x", Model = "y" },
+        });
+
+        var raw = File.ReadAllText(_filePath);
+
+        Assert.Contains("\"provider\"", raw);
+        Assert.Contains("\"presetId\"", raw);
+        Assert.Contains("\"baseUrl\"", raw);
+        Assert.DoesNotContain("\"PresetId\"", raw); // PascalCase explícito ausente
+    }
+
+    [Fact]
+    public void Load_returns_defaults_when_file_is_corrupt_json()
+    {
+        File.WriteAllText(_filePath, "{ this is not valid json");
+        var svc = MakeService();
+
+        var result = svc.Load();
+
+        Assert.Equal("openai", result.Provider.PresetId); // defaults
+    }
+
+    [Fact]
+    public void Save_does_not_leak_temp_file()
+    {
+        var svc = MakeService();
+        svc.Save(new AppSettings
+        {
+            Provider = new ProviderSettings { PresetId = "openai", BaseUrl = "https://x", Model = "y" },
+        });
+
+        var tempLeftover = Path.Combine(_tmpDir, "settings.json.tmp");
+        Assert.False(File.Exists(tempLeftover));
+    }
+}

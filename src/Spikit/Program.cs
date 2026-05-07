@@ -61,23 +61,63 @@ public static class Program
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
 
-                    services.Configure<WhisperApiOptions>(ctx.Configuration.GetSection("Whisper"));
-                    services.AddSingleton(_ => new WhisperApiKey(
-                        // User scope (registry) primero — sobrevive a procesos parent con entorno
-                        // heredado viejo. Process scope como fallback (CI / scripts que la pasan
-                        // explícita). En EP-3 esto se reemplaza por DPAPI.
-                        Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User)
-                        ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-                        ?? string.Empty));
+                    services.AddSingleton<ISettingsService, JsonSettingsService>();
+                    services.AddSingleton<ISecretStore, DpapiSecretStore>();
+                    services.AddSingleton<IProviderConfigWriter, ProviderConfigWriter>();
+
+                    // Bootstrap del WhisperApiKey desde DPAPI con fallback a env vars (compat
+                    // con sesiones anteriores a EP-3.4 — EP-3.8 puede limpiar esto cuando
+                    // exista el flag onboardingCompleted). Singleton mutable → lo refresca
+                    // ProviderConfigWriter en runtime sin reiniciar la app.
+                    services.AddSingleton(sp =>
+                    {
+                        var secrets = sp.GetRequiredService<ISecretStore>();
+                        var fromDpapi = secrets.Read(ProviderConfigWriter.ApiKeySecretName);
+                        if (!string.IsNullOrEmpty(fromDpapi))
+                        {
+                            return new WhisperApiKey(fromDpapi);
+                        }
+
+                        var fallback = Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User)
+                                       ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY")
+                                       ?? string.Empty;
+                        return new WhisperApiKey(fallback);
+                    });
+
+                    // WhisperApiOptions hidratado desde settings.json (provider.baseUrl /
+                    // provider.model) cuando ya hay onboarding completado, con appsettings.json
+                    // como fallback para Language/TimeoutSeconds (no son user-config en V1).
+                    // Singleton compartido + IOptions wrappeando la misma referencia → mutaciones
+                    // del writer se reflejan en el transient WhisperApiTranscriptionService.
+                    services.AddSingleton(sp =>
+                    {
+                        var settings = sp.GetRequiredService<ISettingsService>().Load();
+                        var section = ctx.Configuration.GetSection("Whisper");
+                        var fallback = new WhisperApiOptions();
+                        section.Bind(fallback);
+
+                        return new WhisperApiOptions
+                        {
+                            BaseUrl = !string.IsNullOrWhiteSpace(settings.Provider.BaseUrl)
+                                ? settings.Provider.BaseUrl
+                                : fallback.BaseUrl,
+                            Model = !string.IsNullOrWhiteSpace(settings.Provider.Model)
+                                ? settings.Provider.Model
+                                : fallback.Model,
+                            Language = fallback.Language,
+                            TimeoutSeconds = fallback.TimeoutSeconds,
+                        };
+                    });
+                    services.AddSingleton<IOptions<WhisperApiOptions>>(sp =>
+                        Options.Create(sp.GetRequiredService<WhisperApiOptions>()));
+
                     services.AddHttpClient<ITranscriptionService, WhisperApiTranscriptionService>((sp, client) =>
                     {
-                        var opts = sp.GetRequiredService<IOptions<WhisperApiOptions>>().Value;
+                        var opts = sp.GetRequiredService<WhisperApiOptions>();
                         client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
                     });
 
                     services.AddSingleton<ITextInsertionService, ClipboardPasteService>();
-                    services.AddSingleton<ISettingsService, JsonSettingsService>();
-                    services.AddSingleton<ISecretStore, DpapiSecretStore>();
 
                     // Tester reusable: onboarding (EP-3.3) y Settings → Provider (EP-4)
                     // comparten la misma lógica de "GET /models con Bearer key".

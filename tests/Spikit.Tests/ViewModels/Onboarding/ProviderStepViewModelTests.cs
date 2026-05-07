@@ -9,8 +9,13 @@ public class ProviderStepViewModelTests
 {
     private const string ValidApiKey = "sk-test-key-1234567890123";
 
-    private static ProviderStepViewModel MakeVm(IProviderConnectionTester? tester = null) =>
-        new(NullLogger<ProviderStepViewModel>.Instance, tester ?? new FakeTester());
+    private static ProviderStepViewModel MakeVm(
+        IProviderConnectionTester? tester = null,
+        IProviderConfigWriter? configWriter = null) =>
+        new(
+            NullLogger<ProviderStepViewModel>.Instance,
+            tester ?? new FakeTester(),
+            configWriter ?? new FakeConfigWriter());
 
     // ===== Bootstrap =====
 
@@ -279,6 +284,109 @@ public class ProviderStepViewModelTests
         Assert.Equal(beforeInvalidate + 1, fired);
     }
 
+    // ===== SaveAsync (EP-3.4) =====
+
+    [Fact]
+    public async Task SaveAsync_returns_false_and_sets_error_when_connection_not_tested()
+    {
+        var writer = new FakeConfigWriter();
+        var vm = MakeVm(configWriter: writer);
+        vm.ApiKey = ValidApiKey; // sin probar conexión
+
+        var ok = await vm.SaveAsync();
+
+        Assert.False(ok);
+        Assert.Contains("probar la conexión", vm.SaveError);
+        Assert.Equal(0, writer.CallCount);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_full_config_when_connection_ok()
+    {
+        var writer = new FakeConfigWriter();
+        var vm = await MakeVmWithSuccessfulConnectionAsync(writer);
+
+        var ok = await vm.SaveAsync();
+
+        Assert.True(ok);
+        Assert.Empty(vm.SaveError);
+        Assert.False(vm.HasSaveError);
+        Assert.False(vm.IsSaving);
+        Assert.Equal(1, writer.CallCount);
+        Assert.NotNull(writer.LastConfig);
+        Assert.Equal("openai", writer.LastConfig!.PresetId);
+        Assert.Equal("https://api.openai.com/v1", writer.LastConfig.BaseUrl);
+        Assert.Equal("whisper-1", writer.LastConfig.Model);
+        Assert.Equal(ValidApiKey, writer.LastConfig.ApiKey);
+    }
+
+    [Fact]
+    public async Task SaveAsync_serializes_groq_preset_id_in_config()
+    {
+        var writer = new FakeConfigWriter();
+        var tester = new FakeTester { Result = ProviderConnectionResult.Ok() };
+        var vm = MakeVm(tester, writer);
+        vm.SelectedPreset = ProviderPreset.Groq;
+        vm.ApiKey = "gsk_groq_key_long_enough_xxx";
+        vm.TestConnectionCommand.Execute(null);
+        await tester.WaitForCallAsync();
+
+        await vm.SaveAsync();
+
+        Assert.Equal("groq", writer.LastConfig!.PresetId);
+        Assert.Equal("https://api.groq.com/openai/v1", writer.LastConfig.BaseUrl);
+    }
+
+    [Fact]
+    public async Task SaveAsync_propagates_writer_failure_message_inline()
+    {
+        var writer = new FakeConfigWriter
+        {
+            ThrowOnSave = new ProviderConfigSaveException("DPAPI rechazó el guardado de prueba."),
+        };
+        var vm = await MakeVmWithSuccessfulConnectionAsync(writer);
+
+        var ok = await vm.SaveAsync();
+
+        Assert.False(ok);
+        Assert.True(vm.HasSaveError);
+        Assert.Equal("DPAPI rechazó el guardado de prueba.", vm.SaveError);
+        Assert.False(vm.IsSaving);
+    }
+
+    [Fact]
+    public async Task SaveAsync_clears_previous_error_on_retry_success()
+    {
+        var writer = new FakeConfigWriter
+        {
+            ThrowOnSave = new ProviderConfigSaveException("Falló la primera vez."),
+        };
+        var vm = await MakeVmWithSuccessfulConnectionAsync(writer);
+
+        var firstAttempt = await vm.SaveAsync();
+        Assert.False(firstAttempt);
+        Assert.True(vm.HasSaveError);
+
+        writer.ThrowOnSave = null;
+        var secondAttempt = await vm.SaveAsync();
+
+        Assert.True(secondAttempt);
+        Assert.Empty(vm.SaveError);
+        Assert.False(vm.HasSaveError);
+    }
+
+    private static async Task<ProviderStepViewModel> MakeVmWithSuccessfulConnectionAsync(
+        IProviderConfigWriter? writer)
+    {
+        var tester = new FakeTester { Result = ProviderConnectionResult.Ok() };
+        var vm = MakeVm(tester, writer);
+        vm.ApiKey = ValidApiKey;
+        vm.TestConnectionCommand.Execute(null);
+        await tester.WaitForCallAsync();
+        Assert.Equal(ProviderConnectionStatus.Ok, vm.ConnectionStatus);
+        return vm;
+    }
+
     private static async Task<ProviderStepViewModel> MakeVmWithSuccessfulConnectionAsync()
     {
         var tester = new FakeTester { Result = ProviderConnectionResult.Ok() };
@@ -311,6 +419,24 @@ public class ProviderStepViewModelTests
             // Esperamos al menos al primer await del VM. 1s es overkill pero da margen
             // para que el continuation post-await del TestConnectionAsync se ejecute.
             return Task.WhenAny(_calledTcs.Task, Task.Delay(TimeSpan.FromSeconds(1)));
+        }
+    }
+
+    // Captura la última invocación a SaveAsync y deja simular fallo. La mayoría de los
+    // tests no se preocupan por el guardado; los tests específicos de EP-3.4 inyectan
+    // su propia instancia.
+    private sealed class FakeConfigWriter : IProviderConfigWriter
+    {
+        public ProviderConfig? LastConfig { get; private set; }
+        public int CallCount { get; private set; }
+        public ProviderConfigSaveException? ThrowOnSave { get; set; }
+
+        public Task SaveAsync(ProviderConfig config, CancellationToken ct = default)
+        {
+            CallCount++;
+            LastConfig = config;
+            if (ThrowOnSave is not null) throw ThrowOnSave;
+            return Task.CompletedTask;
         }
     }
 }
