@@ -441,7 +441,8 @@
                     <steps:WelcomeStepView Visibility="{Binding IsWelcomeStep, Converter={StaticResource BoolToVis}}"/>
                     <steps:ProviderStepView DataContext="{Binding Provider}"
                                             Visibility="{Binding DataContext.IsProviderStep, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
-                    <steps:HotkeyStepView Visibility="{Binding IsHotkeyStep, Converter={StaticResource BoolToVis}}"/>
+                    <steps:HotkeyStepView DataContext="{Binding Hotkey}"
+                                          Visibility="{Binding DataContext.IsHotkeyStep, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                     <steps:PruebaStepView Visibility="{Binding IsPruebaStep, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
 

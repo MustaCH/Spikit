@@ -57,6 +57,7 @@ public static class Program
                     services.AddTransient<OnboardingWindow>();
                     services.AddTransient<OnboardingViewModel>();
                     services.AddTransient<ProviderStepViewModel>();
+                    services.AddTransient<HotkeyStepViewModel>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IAudioCaptureService, AudioCaptureService>();

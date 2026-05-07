@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Spikit.Views.Controls"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.RenderTransform>
@@ -11,6 +12,7 @@
     <UserControl.Style>
         <Style TargetType="UserControl">
             <Style.Triggers>
+                <!-- Mismo storyboard de entrada que ProviderStepView para coherencia. -->
                 <Trigger Property="Visibility" Value="Visible">
                     <Trigger.EnterActions>
                         <BeginStoryboard>
@@ -31,35 +33,151 @@
         </Style>
     </UserControl.Style>
 
-    <!-- Placeholder — la UI real (HotkeyCaptureField + radio PTT/Toggle + validación)
-         se cablea en EP-3.5 (ticket 86ahb6c2w) + EP-3.6. -->
-    <Grid MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Top">
-        <StackPanel>
-            <TextBlock Text="Elegí tu hotkey"
-                       Style="{StaticResource SpkTypeH1Style}"
-                       Margin="0,0,0,8"/>
-            <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,32"
-                       Text="Lo vas a apretar para empezar a dictar desde cualquier app."/>
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-            <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                    BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="20">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SpkTypeBodySmStyle}"
-                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                               Text="PLACEHOLDER · EP-3.5 / EP-3.6"
-                               Margin="0,0,0,8"/>
-                    <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeBodySmStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="HelperTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+
+        <!-- RadioButton custom: círculo a la izq + label/sub-label a la derecha. design-system §9.5.
+             Mantenemos el handler default (IsChecked) y solo overrideamos el visual para alinearlo
+             a la paleta SpkBgBrand. -->
+        <Style x:Key="SpkRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="OuterBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <StackPanel Orientation="Horizontal">
+                                <Grid Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,12,0">
+                                    <Ellipse x:Name="OuterCircle"
+                                             Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                             StrokeThickness="1.5"
+                                             Fill="Transparent"/>
+                                    <Ellipse x:Name="InnerDot"
+                                             Width="9" Height="9"
+                                             Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                             Opacity="0"/>
+                                </Grid>
+                                <ContentPresenter VerticalAlignment="Top"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="OuterBorder" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="OuterBorder" Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+                                <Setter TargetName="InnerDot" Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid MaxWidth="480" HorizontalAlignment="Stretch" VerticalAlignment="Top">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="Elegí tu hotkey"
+                           Style="{StaticResource SpkTypeH1Style}"
+                           Margin="0,0,0,8"/>
+                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,24"
+                           Text="Lo vas a apretar para empezar a dictar desde cualquier app."/>
+
+                <!-- Combinación: HotkeyCaptureField + warning inline si HasWarning. -->
+                <TextBlock Text="Combinación" Style="{StaticResource FieldLabelStyle}"/>
+                <controls:HotkeyCaptureField Hotkey="{Binding Hotkey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,0,4"/>
+
+                <Grid Margin="0,2,0,24">
+                    <!-- Helper neutro mientras no haya warning. -->
+                    <TextBlock Text="Sugerencia: usá Ctrl, Alt o Win + una tecla para evitar conflictos."
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource HelperTextStyle}">
+                                <Setter Property="Margin" Value="0"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasWarning}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="{Binding WarningMessage}"
                                TextWrapping="Wrap"
-                               Text="Acá van: HotkeyCaptureField que graba la combinación, radio Push-to-talk vs Toggle (default PTT), validación contra hotkeys del sistema."/>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                               Visibility="{Binding HasWarning, Converter={StaticResource BoolToVis}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+                                <Setter Property="Foreground" Value="{DynamicResource SpkStateWarningFgBrush}"/>
+                                <Setter Property="Margin" Value="0"/>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
+                <!-- Modo: dos radios apilados, cada uno con título + sub-label en una sola línea. -->
+                <TextBlock Text="Modo" Style="{StaticResource FieldLabelStyle}"/>
+                <RadioButton GroupName="HotkeyMode"
+                             Style="{StaticResource SpkRadioStyle}"
+                             IsChecked="{Binding IsPushToTalk, Mode=TwoWay}">
+                    <StackPanel>
+                        <TextBlock Text="Push-to-talk"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="14"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
+                        <TextBlock Text="Mantené apretadas las teclas mientras hablás."
+                                   Margin="0,2,0,0"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="HotkeyMode"
+                             Style="{StaticResource SpkRadioStyle}"
+                             IsChecked="{Binding IsToggle, Mode=TwoWay}">
+                    <StackPanel>
+                        <TextBlock Text="Toggle"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="14"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"/>
+                        <TextBlock Text="Una pulsación para empezar, otra para terminar."
+                                   Margin="0,2,0,0"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

@@ -21,15 +21,18 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     public OnboardingViewModel(
         ILogger<OnboardingViewModel> logger,
-        ProviderStepViewModel provider)
+        ProviderStepViewModel provider,
+        HotkeyStepViewModel hotkey)
     {
         _logger = logger;
         Provider = provider;
+        Hotkey = hotkey;
 
-        // Suscripción al evento del Provider VM: cuando cambia el estado de conexión
-        // (Ok/Error/Testing/Idle), recomputamos CanGoNext y notificamos al CommandManager
-        // para que el botón "Siguiente" se enable/disable.
-        Provider.ConnectionStateChanged += OnProviderConnectionStateChanged;
+        // Suscripciones a eventos de los step VMs: cuando cambia algo que afecta CanGoNext
+        // recomputamos y notificamos al CommandManager para que el botón "Siguiente" se
+        // enable/disable.
+        Provider.ConnectionStateChanged += OnStepStateChanged;
+        Hotkey.HotkeyStateChanged += OnStepStateChanged;
 
         GoNextCommand = new RelayCommand(GoNext, () => CanGoNext);
         GoBackCommand = new RelayCommand(GoBack, () => CanGoBack);
@@ -37,10 +40,11 @@ public sealed class OnboardingViewModel : ViewModelBase
     }
 
     // VMs por paso, expuestos como propiedades para que cada UserControl haga
-    // DataContext="{Binding Provider}" en el OnboardingWindow.
+    // DataContext="{Binding Provider}" / {Binding Hotkey} en el OnboardingWindow.
     public ProviderStepViewModel Provider { get; }
+    public HotkeyStepViewModel Hotkey { get; }
 
-    private void OnProviderConnectionStateChanged(object? sender, EventArgs e)
+    private void OnStepStateChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(CanGoNext));
         System.Windows.Input.CommandManager.InvalidateRequerySuggested();
@@ -124,12 +128,15 @@ public sealed class OnboardingViewModel : ViewModelBase
         _ => "Siguiente",
     };
 
-    // CanGoNext por paso. Welcome y Hotkey/Prueba siguen siendo `true` hasta que sus
-    // sub-tasks (EP-3.5/3.7) los cablean. Provider exige IsConnectionOk del paso 1.1
-    // (EP-3.3 cierra ese requisito) y que no estemos en medio de un Save (EP-3.4).
+    // CanGoNext por paso.
+    //   Provider: IsConnectionOk + no estamos en medio del Save (EP-3.3 + EP-3.4).
+    //   Hotkey:   hay alguna combinación capturada (EP-3.5). Warning sin modificadora
+    //             NO bloquea — el ticket lo pide explícito.
+    //   Prueba:   true hasta que EP-3.7 cablee la text box.
     public bool CanGoNext => CurrentStep switch
     {
         OnboardingStep.Provider => Provider.IsConnectionOk && !Provider.IsSaving,
+        OnboardingStep.Hotkey => Hotkey.HasHotkey,
         _ => true,
     };
 
