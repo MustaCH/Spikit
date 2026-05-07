@@ -22,17 +22,20 @@ public sealed class OnboardingViewModel : ViewModelBase
     public OnboardingViewModel(
         ILogger<OnboardingViewModel> logger,
         ProviderStepViewModel provider,
-        HotkeyStepViewModel hotkey)
+        HotkeyStepViewModel hotkey,
+        PruebaStepViewModel prueba)
     {
         _logger = logger;
         Provider = provider;
         Hotkey = hotkey;
+        Prueba = prueba;
 
         // Suscripciones a eventos de los step VMs: cuando cambia algo que afecta CanGoNext
         // recomputamos y notificamos al CommandManager para que el botón "Siguiente" se
         // enable/disable.
         Provider.ConnectionStateChanged += OnStepStateChanged;
         Hotkey.HotkeyStateChanged += OnStepStateChanged;
+        Prueba.TextStateChanged += OnStepStateChanged;
 
         GoNextCommand = new RelayCommand(GoNext, () => CanGoNext);
         GoBackCommand = new RelayCommand(GoBack, () => CanGoBack);
@@ -40,9 +43,15 @@ public sealed class OnboardingViewModel : ViewModelBase
     }
 
     // VMs por paso, expuestos como propiedades para que cada UserControl haga
-    // DataContext="{Binding Provider}" / {Binding Hotkey} en el OnboardingWindow.
+    // DataContext="{Binding Provider}" / {Binding Hotkey} / {Binding Prueba} en OnboardingWindow.
     public ProviderStepViewModel Provider { get; }
     public HotkeyStepViewModel Hotkey { get; }
+    public PruebaStepViewModel Prueba { get; }
+
+    // Disparado la primera vez que el wizard transiciona al step Prueba. La OnboardingWindow
+    // lo usa para levantar la pill flotante + Start del DictationOrchestrator antes de que
+    // el usuario apriete el hotkey configurado en EP-3.6.
+    public event EventHandler? PruebaStepEntered;
 
     private void OnStepStateChanged(object? sender, EventArgs e)
     {
@@ -132,11 +141,12 @@ public sealed class OnboardingViewModel : ViewModelBase
     //   Provider: IsConnectionOk + no estamos en medio del Save (EP-3.3 + EP-3.4).
     //   Hotkey:   hay combinación capturada + no estamos en medio del Save (EP-3.5 + EP-3.6).
     //             Warning sin modificadora NO bloquea — el ticket lo pide explícito.
-    //   Prueba:   true hasta que EP-3.7 cablee la text box.
+    //   Prueba:   la TextBox tiene texto (EP-3.7). Saltar siempre disponible aparte (US-1.3).
     public bool CanGoNext => CurrentStep switch
     {
         OnboardingStep.Provider => Provider.IsConnectionOk && !Provider.IsSaving,
         OnboardingStep.Hotkey => Hotkey.HasHotkey && !Hotkey.IsSaving,
+        OnboardingStep.Prueba => Prueba.HasText,
         _ => true,
     };
 
@@ -220,6 +230,11 @@ public sealed class OnboardingViewModel : ViewModelBase
 
         CurrentStep = OnboardingStep.Prueba;
         _logger.LogDebug("Onboarding → {Step}", CurrentStep);
+
+        // EP-3.7: notificar a la window para que active la pill + DictationOrchestrator
+        // ahora que la hotkey ya está registrada en el HotkeyService (EP-3.6 lo hizo
+        // adentro del SaveAsync de arriba).
+        PruebaStepEntered?.Invoke(this, EventArgs.Empty);
     }
 
     private void GoBack()

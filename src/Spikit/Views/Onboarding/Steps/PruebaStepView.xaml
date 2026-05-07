@@ -11,6 +11,10 @@
     <UserControl.Style>
         <Style TargetType="UserControl">
             <Style.Triggers>
+                <!-- Misma entrada animada que los otros steps. Además, IsVisibleChanged en
+                     code-behind enfoca la TextBox cuando este step se vuelve visible — el
+                     foco es crítico porque el dictado real escribe en el control con foco
+                     dentro de la window (SendInput Ctrl+V). -->
                 <Trigger Property="Visibility" Value="Visible">
                     <Trigger.EnterActions>
                         <BeginStoryboard>
@@ -31,8 +35,53 @@
         </Style>
     </UserControl.Style>
 
-    <!-- Placeholder — el textbox + flow real de dictado se cablea en EP-3.7 (ticket 86ahb6c5e). -->
-    <Grid MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Top">
+    <UserControl.Resources>
+        <!-- Variante multilínea del SpkTextBox del provider step. Mismo look pero alto fijo,
+             padding generoso, scroll vertical, tipografía mono para destacar el texto dictado. -->
+        <Style x:Key="DictationTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Stretch"
+                                          BorderThickness="0"
+                                          IsTabStop="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource SpkBorderFocusBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid MaxWidth="480" HorizontalAlignment="Stretch" VerticalAlignment="Top">
         <StackPanel>
             <TextBlock Text="Probalo"
                        Style="{StaticResource SpkTypeH1Style}"
@@ -40,26 +89,17 @@
             <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
                        Foreground="{DynamicResource SpkFgSecondaryBrush}"
                        TextWrapping="Wrap"
-                       Margin="0,0,0,32"
-                       Text="Apretá tu hotkey y dictá una frase corta. Si todo anda, vas a ver el texto acá."/>
+                       Margin="0,0,0,20"
+                       Text="Apretá tu hotkey y dictá una frase corta. El texto va a aparecer abajo."/>
 
-            <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                    BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="20"
-                    MinHeight="160">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SpkTypeBodySmStyle}"
-                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                               Text="PLACEHOLDER · EP-3.7"
-                               Margin="0,0,0,8"/>
-                    <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                               TextWrapping="Wrap"
-                               Text="Acá va el text box con foco automático y el flow real de dictado integrado al orchestrator. Saltar y Finalizar viven en el footer del Window."/>
-                </StackPanel>
-            </Border>
+            <!-- TextBox para la frase de prueba. Alto ajustado a 200 px para dejar
+                 margen visible al footer (con 360 el borde inferior quedaba tapado).
+                 Es prueba corta — no necesita más espacio. El binding two-way actualiza
+                 HasText cuando el clipboard paste mete el texto transcripto. -->
+            <TextBox x:Name="DictationTextBox"
+                     Style="{StaticResource DictationTextBoxStyle}"
+                     Height="200"
+                     Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
         </StackPanel>
     </Grid>
 </UserControl>

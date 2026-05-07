@@ -58,6 +58,7 @@ public static class Program
                     services.AddTransient<OnboardingViewModel>();
                     services.AddTransient<ProviderStepViewModel>();
                     services.AddTransient<HotkeyStepViewModel>();
+                    services.AddTransient<PruebaStepViewModel>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IHotkeyConfigWriter, HotkeyConfigWriter>();
