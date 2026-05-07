@@ -52,6 +52,27 @@ public class JsonSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Default_OnboardingCompleted_is_false()
+    {
+        var svc = MakeService();
+
+        var result = svc.Load();
+
+        Assert.False(result.OnboardingCompleted);
+    }
+
+    [Fact]
+    public void Roundtrip_preserves_OnboardingCompleted_flag()
+    {
+        var svc = MakeService();
+        svc.Save(new AppSettings { OnboardingCompleted = true });
+
+        var loaded = svc.Load();
+
+        Assert.True(loaded.OnboardingCompleted);
+    }
+
+    [Fact]
     public void Roundtrip_preserves_hotkey_section()
     {
         var svc = MakeService();

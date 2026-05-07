@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Spikit.Cli;
-using Spikit.Models;
 using Spikit.Services.Hotkey;
+using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
 using Spikit.Views;
@@ -18,6 +18,11 @@ public partial class App : Application
     private readonly IHost _host;
     private readonly ILogger<App> _logger;
     private readonly CommandLineArgs _cliArgs;
+
+    // True una vez que entramos al modo MainApp (pill + orchestrator activos). Evita
+    // double-Start si la transición onboarding→main se dispara dos veces (no debería
+    // pasar, pero el costo de chequearlo es trivial).
+    private bool _mainAppActive;
 
     public App(IHost host, ILogger<App> logger, CommandLineArgs cliArgs)
     {
@@ -33,37 +38,76 @@ public partial class App : Application
 
         _logger.LogInformation("App started");
 
-        // Acceso a la herramienta de diagnóstico EP-1 vía --diagnostics-poc. Ver ADR-0003.
-        // Acceso al shell de Onboarding (EP-3.1) vía --onboarding. EP-3.8 reemplaza este
-        // routing manual por el bootstrap gate (lectura del flag onboardingCompleted).
-        Window startupWindow = _cliArgs switch
+        var completionStore = _host.Services.GetRequiredService<IOnboardingCompletionStore>();
+        var mode = StartupRouter.Decide(_cliArgs, completionStore.IsCompleted());
+        _logger.LogInformation("Startup mode → {Mode}", mode);
+
+        switch (mode)
         {
-            { DiagnosticsPoc: true } => _host.Services.GetRequiredService<PocLatencyWindow>(),
-            { Onboarding: true } => _host.Services.GetRequiredService<OnboardingWindow>(),
-            _ => _host.Services.GetRequiredService<MainWindow>(),
-        };
+            case StartupRouter.StartupMode.DiagnosticsPoc:
+                _host.Services.GetRequiredService<PocLatencyWindow>().Show();
+                break;
 
-        startupWindow.Show();
+            case StartupRouter.StartupMode.Onboarding:
+                ShowOnboardingWindow();
+                break;
 
-        // Arrancamos el orchestrator después de que la UI principal exista, para que
-        // captura Dispatcher.CurrentDispatcher correctamente y el hotkey global se registre.
-        // En modos de preview (POC y Onboarding shell) no levantamos el orchestrator.
-        if (!_cliArgs.DiagnosticsPoc && !_cliArgs.Onboarding)
-        {
-            // La pill flotante se muestra primero (off-screen, modo Hidden) para que esté
-            // pre-cargada al primer press y la animación de entrada arranque sin hiccup.
-            var pill = _host.Services.GetRequiredService<DictationPillWindow>();
-            pill.Show();
-
-            // Hidratar la config del hotkey desde settings.json antes de arrancar el
-            // orchestrator (EP-3.6). Si el JSON no existe / está corrupto, los defaults V1
-            // (Ctrl+Alt+M / PushToTalk) están encapsulados en HotkeySettings.
-            BootstrapHotkey();
-
-            _host.Services.GetRequiredService<DictationOrchestrator>().Start();
+            case StartupRouter.StartupMode.MainApp:
+                EnterMainAppMode();
+                break;
         }
 
         base.OnStartup(e);
+    }
+
+    // Levanta el OnboardingWindow modal y se suscribe al Closed para decidir qué hacer
+    // después: si el flag quedó en true, transicionar al MainApp inline (sin reiniciar
+    // la app); si no, cerrar la app — el usuario abandonó sin completar (RN-5).
+    private void ShowOnboardingWindow()
+    {
+        var window = _host.Services.GetRequiredService<OnboardingWindow>();
+        window.Closed += OnOnboardingWindowClosed;
+        window.Show();
+    }
+
+    private void OnOnboardingWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is OnboardingWindow window)
+        {
+            window.Closed -= OnOnboardingWindowClosed;
+        }
+
+        var completionStore = _host.Services.GetRequiredService<IOnboardingCompletionStore>();
+        if (!completionStore.IsCompleted())
+        {
+            _logger.LogInformation("Onboarding cerrado sin completar — shutdown");
+            Shutdown();
+            return;
+        }
+
+        _logger.LogInformation("Onboarding completado — transición inline a MainApp");
+        EnterMainAppMode();
+    }
+
+    // Equivalente al flujo "no --diagnostics-poc, no --onboarding" anterior: pill flotante
+    // pre-cargada, hotkey hidratado desde settings.json, orchestrator arrancado, MainWindow
+    // visible. Idempotente vía _mainAppActive — el OnboardingWindow del modo Onboarding ya
+    // pudo haber dejado la pill + orchestrator en estado "started" durante el step Prueba;
+    // en ese caso el cleanup del OnClosing los Stop()-eó y acá los volvemos a arrancar.
+    private void EnterMainAppMode()
+    {
+        if (_mainAppActive) return;
+        _mainAppActive = true;
+
+        var pill = _host.Services.GetRequiredService<DictationPillWindow>();
+        pill.Show();
+
+        BootstrapHotkey();
+
+        _host.Services.GetRequiredService<DictationOrchestrator>().Start();
+
+        var main = _host.Services.GetRequiredService<MainWindow>();
+        main.Show();
     }
 
     private void BootstrapHotkey()
@@ -97,7 +141,7 @@ public partial class App : Application
     {
         _logger.LogInformation("App exiting");
 
-        if (!_cliArgs.DiagnosticsPoc && !_cliArgs.Onboarding)
+        if (_mainAppActive)
         {
             try { _host.Services.GetRequiredService<DictationOrchestrator>().Dispose(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Error disposing orchestrator"); }

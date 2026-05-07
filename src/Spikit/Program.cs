@@ -8,6 +8,7 @@ using Spikit.Cli;
 using Spikit.Services.Audio;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
+using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Provider;
 using Spikit.Services.Secrets;
@@ -67,6 +68,7 @@ public static class Program
                     services.AddSingleton<ISettingsService, JsonSettingsService>();
                     services.AddSingleton<ISecretStore, DpapiSecretStore>();
                     services.AddSingleton<IProviderConfigWriter, ProviderConfigWriter>();
+                    services.AddSingleton<IOnboardingCompletionStore, OnboardingCompletionStore>();
 
                     // Bootstrap del WhisperApiKey desde DPAPI con fallback a env vars (compat
                     // con sesiones anteriores a EP-3.4 — EP-3.8 puede limpiar esto cuando

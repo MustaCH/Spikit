@@ -2,14 +2,20 @@ using Spikit.Native;
 
 namespace Spikit.Models;
 
-// Raíz del archivo %AppData%\Spikit\settings.json. Crece con el resto del onboarding
-// (flag onboardingCompleted en EP-3.8). Las secciones "provider" y "hotkey" cierran
-// EP-3.4 y EP-3.6 respectivamente. Las propiedades NO se mutan in-place desde fuera del
-// settings service — el flujo canónico es Load → mutar → Save.
+// Raíz del archivo %AppData%\Spikit\settings.json. Las secciones "provider" y "hotkey"
+// cierran EP-3.4 y EP-3.6 respectivamente; el flag "onboardingCompleted" de EP-3.8
+// gatea el bootstrap (App.xaml.cs decide entre OnboardingWindow y MainWindow al startup).
+// Las propiedades NO se mutan in-place desde fuera del settings service — el flujo
+// canónico es Load → mutar → Save.
 public sealed class AppSettings
 {
     public ProviderSettings Provider { get; set; } = new();
     public HotkeySettings Hotkey { get; set; } = new();
+
+    // Flag persistido al apretar Finalizar o Saltar en el step Prueba (EP-3.7). Mientras
+    // sea false, App.OnStartup vuelve a abrir el onboarding al levantar la app. RN-5:
+    // sin onboarding completo no se entra al estado de dictado.
+    public bool OnboardingCompleted { get; set; }
 }
 
 // Sección "provider" — ver acceptance criteria de EP-3.4. presetId es el enum ProviderPreset

@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Spikit.Services.Onboarding;
 
 namespace Spikit.ViewModels.Onboarding;
 
@@ -19,13 +20,17 @@ public sealed class OnboardingViewModel : ViewModelBase
     private OnboardingStep _currentStep = OnboardingStep.Welcome;
     private bool _isCompleted;
 
+    private readonly IOnboardingCompletionStore _completionStore;
+
     public OnboardingViewModel(
         ILogger<OnboardingViewModel> logger,
         ProviderStepViewModel provider,
         HotkeyStepViewModel hotkey,
-        PruebaStepViewModel prueba)
+        PruebaStepViewModel prueba,
+        IOnboardingCompletionStore completionStore)
     {
         _logger = logger;
+        _completionStore = completionStore;
         Provider = provider;
         Hotkey = hotkey;
         Prueba = prueba;
@@ -253,6 +258,19 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     private void CompleteOnboarding(bool skipped)
     {
+        // EP-3.8: persistir el flag ANTES de disparar el evento. Si la persistencia falla,
+        // logueamos pero seguimos cerrando el wizard — el usuario terminó su intención y
+        // bloquearlo acá sería peor UX. Próximo arranque va a re-abrir el onboarding y
+        // listo (estado idempotente, los steps anteriores ya persistieron lo suyo).
+        try
+        {
+            _completionStore.MarkCompleted();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo persistir el flag onboardingCompleted (siguiendo igual)");
+        }
+
         IsCompleted = true;
         _logger.LogInformation("Onboarding completado (skipped={Skipped})", skipped);
         OnboardingCompleted?.Invoke(this, EventArgs.Empty);
