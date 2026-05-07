@@ -4,6 +4,8 @@ namespace Spikit.ViewModels.Onboarding;
 //
 // Welcome (1.0) es preludio: no entra al stepper visible (●━○━○).
 // Provider/Hotkey/Prueba son los 3 pasos numerados que ve el usuario en el indicador.
+// Completed es la pantalla de cierre con animación de check + CTA "Empezar" (follow-up
+// UX agregado fuera del ticket original — antes el wizard cerraba abruptamente).
 //
 // Spec: docs/flows.md FLOW 1, docs/design-system.md §11.1.
 public enum OnboardingStep
@@ -12,4 +14,5 @@ public enum OnboardingStep
     Provider = 1,
     Hotkey = 2,
     Prueba = 3,
+    Completed = 4,
 }

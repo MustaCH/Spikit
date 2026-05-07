@@ -45,6 +45,7 @@ public sealed class OnboardingViewModel : ViewModelBase
         GoNextCommand = new RelayCommand(GoNext, () => CanGoNext);
         GoBackCommand = new RelayCommand(GoBack, () => CanGoBack);
         SkipCommand = new RelayCommand(Skip, () => IsSkipVisible);
+        FinishCommand = new RelayCommand(Finish);
     }
 
     // VMs por paso, expuestos como propiedades para que cada UserControl haga
@@ -92,9 +93,15 @@ public sealed class OnboardingViewModel : ViewModelBase
     public bool IsProviderStep => CurrentStep == OnboardingStep.Provider;
     public bool IsHotkeyStep => CurrentStep == OnboardingStep.Hotkey;
     public bool IsPruebaStep => CurrentStep == OnboardingStep.Prueba;
+    public bool IsCompletedStep => CurrentStep == OnboardingStep.Completed;
 
-    // Stepper: visible solo en los 3 pasos numerados (no en Welcome).
-    public bool IsStepperVisible => CurrentStep != OnboardingStep.Welcome;
+    // Stepper: visible solo en los 3 pasos numerados (no en Welcome ni en Completed).
+    public bool IsStepperVisible => CurrentStep != OnboardingStep.Welcome
+                                    && CurrentStep != OnboardingStep.Completed;
+
+    // Footer del Window: oculto en el step Completed (su CTA "Empezar" vive dentro
+    // del UserControl). En Welcome/Provider/Hotkey/Prueba sigue visible con sus botones.
+    public bool IsFooterVisible => CurrentStep != OnboardingStep.Completed;
 
     // Por step del stepper:
     //   Done = el step ya quedó atrás (círculo brand sólido + check).
@@ -160,6 +167,10 @@ public sealed class OnboardingViewModel : ViewModelBase
     public ICommand GoNextCommand { get; }
     public ICommand GoBackCommand { get; }
     public ICommand SkipCommand { get; }
+
+    // CTA del step Completed ("Empezar a usar Spikit"). El click cierra la window y
+    // dispara la transición inline a MainApp en App.xaml.cs.
+    public ICommand FinishCommand { get; }
 
     private void GoNext()
     {
@@ -258,10 +269,11 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     private void CompleteOnboarding(bool skipped)
     {
-        // EP-3.8: persistir el flag ANTES de disparar el evento. Si la persistencia falla,
-        // logueamos pero seguimos cerrando el wizard — el usuario terminó su intención y
-        // bloquearlo acá sería peor UX. Próximo arranque va a re-abrir el onboarding y
-        // listo (estado idempotente, los steps anteriores ya persistieron lo suyo).
+        // EP-3.8: persistir el flag ANTES de transicionar al step Completed. Si la
+        // persistencia falla, logueamos pero seguimos al step Completed — el usuario
+        // terminó su intención y bloquearlo acá sería peor UX. Próximo arranque va a
+        // re-abrir el onboarding y listo (estado idempotente, los steps anteriores ya
+        // persistieron lo suyo).
         try
         {
             _completionStore.MarkCompleted();
@@ -271,8 +283,22 @@ public sealed class OnboardingViewModel : ViewModelBase
             _logger.LogError(ex, "No se pudo persistir el flag onboardingCompleted (siguiendo igual)");
         }
 
+        // IsCompleted=true ANTES de cambiar el step para que el OnClosing de la window
+        // no muestre el confirm de "cerrar sin terminar" si el usuario X-cierra desde
+        // el step Completed.
         IsCompleted = true;
         _logger.LogInformation("Onboarding completado (skipped={Skipped})", skipped);
+
+        // Transición al step de cierre con animación. El OnboardingCompleted event
+        // se dispara recién cuando el usuario apriete "Empezar" (FinishCommand).
+        CurrentStep = OnboardingStep.Completed;
+    }
+
+    private void Finish()
+    {
+        // El usuario apretó "Empezar a usar Spikit" en el step Completed.
+        // App.xaml.cs ya está suscripto al evento → cierra la window + transiciona a MainApp.
+        _logger.LogDebug("Finish del onboarding: disparando OnboardingCompleted");
         OnboardingCompleted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -282,7 +308,9 @@ public sealed class OnboardingViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsProviderStep));
         OnPropertyChanged(nameof(IsHotkeyStep));
         OnPropertyChanged(nameof(IsPruebaStep));
+        OnPropertyChanged(nameof(IsCompletedStep));
         OnPropertyChanged(nameof(IsStepperVisible));
+        OnPropertyChanged(nameof(IsFooterVisible));
         OnPropertyChanged(nameof(IsStep1Done));
         OnPropertyChanged(nameof(IsStep1Current));
         OnPropertyChanged(nameof(IsStep2Done));

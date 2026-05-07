@@ -445,10 +445,12 @@
                                           Visibility="{Binding DataContext.IsHotkeyStep, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                     <steps:PruebaStepView DataContext="{Binding Prueba}"
                                           Visibility="{Binding DataContext.IsPruebaStep, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+                    <steps:CompletedStepView Visibility="{Binding IsCompletedStep, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
 
-                <!-- Footer. -->
-                <Grid Grid.Row="3" Margin="28,24,28,24">
+                <!-- Footer. Oculto en el step Completed (su CTA vive dentro del UserControl). -->
+                <Grid Grid.Row="3" Margin="28,24,28,24"
+                      Visibility="{Binding IsFooterVisible, Converter={StaticResource BoolToVis}}">
                     <!-- Welcome: una sola CTA primaria centrada. -->
                     <Button Style="{StaticResource OnbPrimaryButton}"
                             Command="{Binding GoNextCommand}"
