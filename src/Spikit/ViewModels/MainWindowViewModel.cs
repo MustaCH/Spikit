@@ -1,6 +1,8 @@
+using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Spikit.Services.Orchestration;
+using Spikit.Services.Settings;
 
 namespace Spikit.ViewModels;
 
@@ -22,16 +24,24 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     public MainWindowViewModel(
         DictationOrchestrator orchestrator,
-        ILogger<MainWindowViewModel> logger)
+        ILogger<MainWindowViewModel> logger,
+        ISettingsWindowPresenter settingsPresenter)
     {
         _orchestrator = orchestrator;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
+        // Entrada temporal a Settings hasta que EP-4.2 cablee el TrayIcon como punto
+        // de entrada canónico. La MainWindow ya está marcada como debug (texto inline
+        // en el XAML) y este botón vive en la misma línea de "ventana de desarrollo".
+        OpenSettingsCommand = new RelayCommand(settingsPresenter.Open);
+
         _orchestrator.StateChanged += OnStateChanged;
         _orchestrator.PillMessageChanged += OnPillMessageChanged;
         _orchestrator.TranscriptionCompleted += OnTranscriptionCompleted;
     }
+
+    public ICommand OpenSettingsCommand { get; }
 
     public string State
     {

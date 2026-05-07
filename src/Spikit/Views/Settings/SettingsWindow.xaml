@@ -1,0 +1,403 @@
+<Window x:Class="Spikit.Views.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:vm="clr-namespace:Spikit.ViewModels.Settings"
+        xmlns:sections="clr-namespace:Spikit.Views.Settings.Sections"
+        mc:Ignorable="d"
+        Title="Spikit · Settings"
+        Height="640" Width="960"
+        MinHeight="480" MinWidth="800"
+        WindowStyle="None"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        UseLayoutRounding="True"
+        Background="{DynamicResource SpkBgCanvasBrush}">
+
+    <!-- Custom chrome — coherencia visual con OnboardingWindow (glow rojo de fondo + bordes
+         redondeados + title bar propio). Diferencias respecto al onboarding:
+         - Resize habilitado (ResizeBorderThickness=6 para drag desde bordes).
+         - Min/max/close en lugar de solo close (es ventana normal de app, no wizard).
+         - ShowInTaskbar=True. -->
+    <WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Sidebar item: animado en hover + selected.
+             Spec base: design-system §9.12 (item activo: bg.brand.muted + 2px border-left brand).
+             - Hover: ColorAnimation suave del bg + foreground primary (160ms).
+             - Selected: el indicador izquierdo aparece con un slide-in (Width 0→2) + opacity
+               0→1 (180ms ease-out), y el bg toma brand.muted via setter directo. ExitActions
+               hacen el reverso.
+             - Click idle / no selected: bg transparent, fg secondary, indicador colapsado. -->
+        <Style x:Key="SidebarItemStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,0,12,0"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,2,0,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Bg"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+
+                            <!-- Indicador izquierdo (2px brand). Arranca colapsado y se anima
+                                 en EnterActions del DataTrigger Tag=True. RenderTransform mantiene
+                                 el ancho = 2 todo el tiempo; lo que se anima es la opacity y un
+                                 ScaleX 0→1 para que parezca que crece desde la izquierda. -->
+                            <Border x:Name="SelIndicator"
+                                    Width="2"
+                                    HorizontalAlignment="Left"
+                                    Background="{DynamicResource SpkBgBrandSolidBrush}"
+                                    Margin="0,6,0,6"
+                                    Opacity="0"
+                                    RenderTransformOrigin="0,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="SelScale" ScaleX="0"/>
+                                </Border.RenderTransform>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Hover (no selected): suave switch a bg.muted + fg.primary. -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgMutedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </Trigger>
+
+                            <!-- Selected (Tag=True bindado a IsXxxSelected del VM): el indicador
+                                 crece desde 0 width + opacity 0→1, y el bg toma brand.muted. -->
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SelIndicator"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1" Duration="0:0:0.18">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="SelScale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             To="1" Duration="0:0:0.18">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SelIndicator"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.12"/>
+                                            <DoubleAnimation Storyboard.TargetName="SelScale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             To="0" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgBrandMutedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botones del title bar custom (min / max / close). WindowChrome.IsHitTestVisibleInChrome=True
+             para que reciban click pese a estar en la zona de drag. -->
+        <Style x:Key="WindowChromeButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Style aplicado a las section UserControls del ContentControl. Cuando una sección
+             pasa de Hidden a Visible (al navegar el sidebar), anima un fade + translate-up 12px
+             en 320ms ease-out. Memoria de dirección visual aprobada: "animaciones sutiles 320ms
+             ease-out". -->
+        <Style x:Key="SectionTransitionStyle" TargetType="UserControl">
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="0"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Visibility" Value="Visible">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="0" To="1"
+                                                 Duration="0:0:0.32">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 From="12" To="0"
+                                                 Duration="0:0:0.32">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <!-- Border outermost: marco 1px subtle + bg canvas. Misma fórmula que OnboardingWindow para
+         dar definición a la window cuando no hay chrome del SO. CornerRadius del DWM (Round)
+         se aplica en code-behind via P/Invoke. -->
+    <Border BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+            BorderThickness="1"
+            Background="{DynamicResource SpkBgCanvasBrush}">
+        <Grid>
+            <!-- Glow rojo radial al fondo, anclado al borde inferior. Idéntico al OnboardingWindow.
+                 IsHitTestVisible=False para que no robe clicks al sidebar. -->
+            <Border IsHitTestVisible="False">
+                <Border.Background>
+                    <RadialGradientBrush GradientOrigin="0.5,1.05"
+                                         Center="0.5,1.05"
+                                         RadiusX="0.85" RadiusY="0.55">
+                        <GradientStop Offset="0.0" Color="#3DFF3B30"/>
+                        <GradientStop Offset="0.55" Color="#14FF3B30"/>
+                        <GradientStop Offset="1.0" Color="#00FF3B30"/>
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44"/>   <!-- Title bar custom (draggable) -->
+                    <RowDefinition Height="*"/>    <!-- Sidebar + content -->
+                </Grid.RowDefinitions>
+
+                <!-- Title bar custom: logo + título a la izquierda, min/max/close a la derecha.
+                     Toda la franja superior es draggable salvo los botones (que tienen
+                     IsHitTestVisibleInChrome=True). -->
+                <Grid Grid.Row="0" Background="Transparent">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                Margin="14,0,0,0"
+                                VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Resources/Brand/logo_rojo.png"
+                               Height="18" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               VerticalAlignment="Center"/>
+                        <TextBlock Text="Spikit"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0"/>
+                        <TextBlock Text=" · Settings"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <Button Style="{StaticResource WindowChromeButtonStyle}"
+                                Click="MinimizeButton_Click"
+                                ToolTip="Minimizar">
+                            <Path Data="M 0,5 L 10,5"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"/>
+                        </Button>
+                        <Button Style="{StaticResource WindowChromeButtonStyle}"
+                                Click="MaximizeButton_Click"
+                                ToolTip="Maximizar / Restaurar">
+                            <!-- Path se cambia desde code-behind al togglear maximizado -->
+                            <Path x:Name="MaxGlyph"
+                                  Data="M 0,0 L 10,0 L 10,10 L 0,10 Z"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.2"
+                                  Fill="Transparent"/>
+                        </Button>
+                        <Button Style="{StaticResource WindowChromeButtonStyle}"
+                                Click="CloseButton_Click"
+                                ToolTip="Cerrar">
+                            <Path Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Sidebar + content panel -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Sidebar -->
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource SpkBgSurfaceBrush}"
+                            BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+                            BorderThickness="0,1,1,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>     <!-- Items principales -->
+                                <RowDefinition Height="Auto"/>  <!-- Separator + Sobre la app -->
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Margin="12,16,12,0">
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="General"
+                                        Tag="{Binding IsGeneralSelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="General"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Provider"
+                                        Tag="{Binding IsProviderSelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="Provider"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Hotkey"
+                                        Tag="{Binding IsHotkeySelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="Hotkey"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Audio"
+                                        Tag="{Binding IsAudioSelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="Audio"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Privacidad"
+                                        Tag="{Binding IsPrivacySelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="Privacy"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Historial"
+                                        Tag="{Binding IsHistorySelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="History"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Plan"
+                                        Tag="{Binding IsPlanSelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="Plan"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Margin="12,8,12,16">
+                                <Border Background="{DynamicResource SpkBorderSubtleBrush}"
+                                        Height="1"
+                                        Margin="8,4,8,8"/>
+                                <Button Style="{StaticResource SidebarItemStyle}"
+                                        Content="Sobre la app"
+                                        Tag="{Binding IsAboutSelected}"
+                                        Command="{Binding NavigateToCommand}"
+                                        CommandParameter="About"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Content panel — padding §11.2 (`6` = 24px). El swap por sección es por
+                         Visibility; el SectionTransitionStyle dispara el fade-in al entrar. -->
+                    <ScrollViewer Grid.Column="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="32,28,32,28"
+                                  Background="Transparent">
+                        <Grid>
+                            <sections:GeneralSectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsGeneralSection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:ProviderSectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsProviderSection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:HotkeySectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsHotkeySection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:AudioSectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsAudioSection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:PrivacySectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsPrivacySection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:HistorySectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsHistorySection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:PlanSectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsPlanSection, Converter={StaticResource BoolToVis}}"/>
+                            <sections:AboutSectionView
+                                Style="{StaticResource SectionTransitionStyle}"
+                                Visibility="{Binding IsAboutSection, Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

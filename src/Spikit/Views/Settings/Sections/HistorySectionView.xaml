@@ -1,0 +1,34 @@
+<UserControl x:Class="Spikit.Views.Settings.Sections.HistorySectionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="Transparent">
+    <!-- Placeholder de la sección Historial. Implementación real en EP-4.8
+         (lista paginada + búsqueda + borrar + estados vacíos). -->
+    <StackPanel>
+        <TextBlock Text="Historial"
+                   Style="{StaticResource SpkTypeH1Style}"
+                   Margin="0,0,0,12"/>
+        <TextBlock Text="Tus dictados guardados localmente."
+                   Style="{StaticResource SpkTypeBodyStyle}"
+                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                   Margin="0,0,0,24"/>
+
+        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
+                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="20">
+            <StackPanel>
+                <TextBlock Text="Pendiente de implementación"
+                           Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           Margin="0,0,0,4"/>
+                <TextBlock Text="Esta sección se completa en EP-4.8."
+                           Style="{StaticResource SpkTypeCaptionStyle}"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

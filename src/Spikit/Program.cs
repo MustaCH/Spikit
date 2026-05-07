@@ -16,9 +16,11 @@ using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
 using Spikit.ViewModels;
 using Spikit.ViewModels.Onboarding;
+using Spikit.ViewModels.Settings;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
 using Spikit.Views.Onboarding;
+using Spikit.Views.Settings;
 
 namespace Spikit;
 
@@ -60,6 +62,14 @@ public static class Program
                     services.AddTransient<ProviderStepViewModel>();
                     services.AddTransient<HotkeyStepViewModel>();
                     services.AddTransient<PruebaStepViewModel>();
+
+                    // Settings shell (EP-4.1). Transient por la misma razón que el onboarding:
+                    // cada apertura debe arrancar limpia (currentSection en General, sin estados
+                    // colgados de aperturas anteriores). El presenter es singleton porque tiene
+                    // que mantener referencia a la window viva para el bring-to-front.
+                    services.AddTransient<SettingsWindow>();
+                    services.AddTransient<SettingsViewModel>();
+                    services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
 
                     services.AddSingleton<IHotkeyService, HotkeyService>();
                     services.AddSingleton<IHotkeyConfigWriter, HotkeyConfigWriter>();
