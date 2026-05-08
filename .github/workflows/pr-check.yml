@@ -1,0 +1,35 @@
+name: PR check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Garantiza que el PR / merge a main compila y los tests pasan. Sin esto la branch
+# protection de main no puede exigir checks (ver docs/infra.md "Pendientes").
+
+jobs:
+  build-and-test:
+    name: Build + tests (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore Spikit.sln
+
+      - name: Build (Release, sin packing)
+        run: dotnet build Spikit.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/Spikit.Tests/Spikit.Tests.csproj -c Release --no-build --verbosity normal

@@ -22,6 +22,17 @@
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
   </ItemGroup>
+  <ItemGroup Label="Distribution">
+    <!-- Velopack runtime debe coincidir con el CLI vpk usado por release.yml. Si bumpeás
+         el CLI (`dotnet tool update -g vpk`) actualizá esta version también. -->
+    <PackageVersion Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+  <ItemGroup Label="Observability">
+    <!-- Sentry .NET SDK. Versión estable 5.x compatible con net8.0-windows.
+         Activación opt-in en runtime: settings.Privacy.SendCrashReports + DSN inyectado
+         en build time como AssemblyMetadata "SentryDsn" (ver Spikit.csproj). -->
+    <PackageVersion Include="Sentry" Version="5.13.0" />
+  </ItemGroup>
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageVersion Include="xunit" Version="2.5.3" />

@@ -38,7 +38,19 @@
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- DSN de Sentry inyectado en build time. Vacío en build local → Sentry desactivado
+         aunque el toggle del usuario esté ON. CI lo sobreescribe con `/p:SentryDsn=$DSN`
+         tomado de GitHub Secrets. NO es información sensitiva (los DSNs de Sentry son
+         públicos por diseño con rate limit del lado del provider). -->
+    <SentryDsn></SentryDsn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Build time → AssemblyMetadata accesible runtime. El bootstrap de Sentry en
+         Program.cs lee este atributo y solo se inicializa si el valor no está vacío. -->
+    <AssemblyMetadata Include="SentryDsn" Value="$(SentryDsn)" />
+  </ItemGroup>
 
   <ItemGroup>
     <Page Update="App.xaml">
@@ -63,6 +75,8 @@
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Velopack" />
+    <PackageReference Include="Sentry" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer sin prefijo v (ej. 0.1.0). Si se dispara desde tag se ignora."
+        required: false
+        type: string
+
+# Empaqueta + sube release a GitHub Releases del tag. El cliente Velopack en cada
+# instalación consume este feed para detectar updates en próximos arranques.
+# Ver docs/infra.md §Pipeline para detalle del flujo y tu responsabilidad runbook.
+
+permissions:
+  contents: write   # vpk upload github crea/actualiza releases en el repo
+
+jobs:
+  release:
+    name: Build + pack + upload (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      # CI inyecta el DSN de Sentry como AssemblyMetadata vía MSBuild. Si el secret
+      # no existe el build sale sin Sentry activo (BootstrapSentry.TryInit retorna null).
+      SPIKIT_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $tag = "${{ github.ref_name }}"
+            if ($tag -match '^v(\d+\.\d+\.\d+(-[A-Za-z0-9.\-]+)?)$') {
+              $version = $Matches[1]
+            } else {
+              throw "No se pudo derivar version desde el tag '$tag'."
+            }
+          }
+          Write-Host "Version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Restore
+        run: dotnet restore Spikit.sln
+
+      - name: Test (paranoid — corremos tests también en release)
+        run: dotnet test tests/Spikit.Tests/Spikit.Tests.csproj -c Release --verbosity normal
+
+      - name: Publish self-contained win-x64
+        shell: pwsh
+        run: |
+          $publishArgs = @(
+            "publish", "src/Spikit/Spikit.csproj",
+            "-c", "Release",
+            "-r", "win-x64",
+            "--self-contained", "true",
+            "-o", "publish",
+            "/p:Version=${{ steps.ver.outputs.version }}",
+            "/p:AssemblyVersion=${{ steps.ver.outputs.version }}.0",
+            "/p:FileVersion=${{ steps.ver.outputs.version }}.0"
+          )
+          if (-not [string]::IsNullOrEmpty($env:SPIKIT_SENTRY_DSN)) {
+            $publishArgs += "/p:SentryDsn=$env:SPIKIT_SENTRY_DSN"
+          }
+          & dotnet @publishArgs
+          if ($LASTEXITCODE -ne 0) { throw "publish fallo" }
+
+      # TODO code-signing: cuando exista cert, agregar step `signtool sign` antes de
+      # vpk pack. Variables CODE_SIGNING_CERT_PFX + CODE_SIGNING_CERT_PASSWORD ya
+      # documentadas en docs/infra.md. Ver "Pendientes" del documento.
+
+      - name: Velopack pack
+        shell: pwsh
+        run: |
+          vpk pack `
+            --packId Spikit `
+            --packVersion ${{ steps.ver.outputs.version }} `
+            --packDir publish `
+            --packAuthors "Ignacio Poletti" `
+            --packTitle "Spikit" `
+            --icon assets/icono/icono.ico `
+            --mainExe Spikit.exe `
+            --outputDir Releases `
+            --shortcuts Desktop,StartMenuRoot `
+            -y
+
+      - name: Velopack upload to GitHub Releases
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          vpk upload github `
+            --repoUrl "https://github.com/${{ github.repository }}" `
+            --token "$env:GITHUB_TOKEN" `
+            --tag "v${{ steps.ver.outputs.version }}" `
+            --releaseName "Spikit ${{ steps.ver.outputs.version }}" `
+            --merge
+
+      # TODO Sentry symbols: cuando exista SENTRY_AUTH_TOKEN configurado, sumar step
+      # con sentry-cli upload-dif para que las stack traces queden simbolizadas.
+      # Ver docs/infra.md §Variables de entorno.
+
+      - name: Upload artifact (instalador para download manual desde la run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: spikit-installer-${{ steps.ver.outputs.version }}
+          path: Releases/Spikit-win-Setup.exe
+          if-no-files-found: error
