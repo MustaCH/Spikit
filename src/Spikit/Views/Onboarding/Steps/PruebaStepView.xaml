@@ -92,14 +92,25 @@
                        Margin="0,0,0,20"
                        Text="Apretá tu hotkey y dictá una frase corta. El texto va a aparecer abajo."/>
 
-            <!-- TextBox para la frase de prueba. Alto ajustado a 200 px para dejar
-                 margen visible al footer (con 360 el borde inferior quedaba tapado).
-                 Es prueba corta — no necesita más espacio. El binding two-way actualiza
-                 HasText cuando el clipboard paste mete el texto transcripto. -->
+            <!-- TextBox para la frase de prueba. Alto fijo 200 px. Es prueba corta — no
+                 necesita más alto. El binding two-way actualiza HasText cuando el clipboard
+                 paste mete el texto transcripto. -->
             <TextBox x:Name="DictationTextBox"
                      Style="{StaticResource DictationTextBoxStyle}"
                      Height="200"
                      Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <!-- Hint educativo de latencia (ticket 86aha9uzt): el primer dictado en warm-cold
+                 puede tardar ~600ms p50, hasta ~1.5s p99 — sin esta línea el usuario suelta
+                 el hotkey o habla antes de tiempo y pierde las primeras sílabas. Versión
+                 minimalista debajo del input por decisión de Nacho 2026-05-08 (alternativa
+                 al callout descripto en flows.md/design-system.md, que rompía la estética
+                 del onboarding). Cierra ADR-0003 §5. -->
+            <TextBlock Style="{StaticResource SpkTypeCaptionStyle}"
+                       Foreground="{DynamicResource SpkFgMutedBrush}"
+                       Margin="2,10,0,0"
+                       TextWrapping="Wrap"
+                       Text="Tip: esperá a las barras rojas antes de hablar. El primer dictado puede tardar ~1 s."/>
         </StackPanel>
     </Grid>
 </UserControl>
