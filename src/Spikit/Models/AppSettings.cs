@@ -14,6 +14,7 @@ public sealed class AppSettings
     public GeneralSettings General { get; set; } = new();
     public AudioSettings Audio { get; set; } = new();
     public TranscriptionSettings Transcription { get; set; } = new();
+    public PrivacySettings Privacy { get; set; } = new();
 
     // Flag persistido al apretar Finalizar o Saltar en el step Prueba (EP-3.7). Mientras
     // sea false, App.OnStartup vuelve a abrir el onboarding al levantar la app. RN-5:
@@ -64,6 +65,16 @@ public sealed class GeneralSettings
         Models.PillAnchor.BottomRight => "bottomright",
         _ => "bottomcenter",
     };
+}
+
+// Sección "privacy" (EP-4.7 / US-5.5). Toggle del historial local — default OFF coherente
+// con RN-2 ("ningún dato persiste salvo opt-in explícito"). Cuando el toggle es false, la
+// orquestación termina cada sesión sin escribir history.json (ya está implementado, EP-4.7
+// solo expone el switch al usuario). El cableado runtime que reacciona al cambio en vivo
+// vive en EP-4.10 — esta sección solo persiste el flag.
+public sealed class PrivacySettings
+{
+    public bool HistoryEnabled { get; set; } = false;
 }
 
 // Sección "audio" (EP-4.6 / US-5.3). DeviceId vacío representa "default del sistema" —

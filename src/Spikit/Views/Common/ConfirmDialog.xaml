@@ -1,0 +1,124 @@
+<Window x:Class="Spikit.Views.Common.ConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True">
+
+    <!-- Modal de confirmación bloqueante. Spec: design-system.md §9.10 (scrim bg.overlay,
+         caja 420px / padding 24 / radius xl / shadow lg, foco en Cancelar, Esc cierra,
+         click en scrim cierra). Reusable: el caller setea Title/MessageText/ConfirmLabel/
+         CancelLabel/IsDestructive y hace ShowDialog() — devuelve true si confirmó. La Window
+         se dimensiona al área de la Owner en Loaded (code-behind) para que el scrim cubra
+         exactamente la ventana padre.
+
+         Tab order: arranca en Cancelar (heurística #5 — el destructive nunca tiene foco
+         automático). El close sin owner cae a CenterScreen y dimensiones por contenido. -->
+
+    <Grid x:Name="RootGrid">
+        <!-- Scrim a pantalla completa de la owner. Click en el scrim = Cancelar. El Border
+             tiene IsHitTestVisible="True" para capturar el click; la Box interna lo come
+             antes con un MouseLeftButtonDown handler vacío vía template (más abajo). -->
+        <Border x:Name="Scrim"
+                Background="{DynamicResource SpkBgOverlayBrush}"
+                MouseLeftButtonDown="Scrim_MouseLeftButtonDown" />
+
+        <!-- Box del modal — centrado, width fijo 420px. El padding 24 y el radius "xl" (16)
+             vienen del design-system. La sombra usa el DropShadowEffect equivalente al token
+             shadow.lg para dar elevación sobre el scrim. -->
+        <Border x:Name="DialogBox"
+                Width="420"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{DynamicResource SpkBgSurfaceBrush}"
+                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="16"
+                Padding="24"
+                MouseLeftButtonDown="DialogBox_MouseLeftButtonDown">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="32" ShadowDepth="8" Opacity="0.5" Color="Black" />
+            </Border.Effect>
+
+            <StackPanel>
+                <!-- Header: título h2 + close button (✕). El close button es opcional —
+                     respetamos el spec del design-system que lista "✕ close" en el tab order. -->
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TitleText"
+                               Grid.Column="0"
+                               Style="{StaticResource SpkTypeH2Style}"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap" />
+                    <Button x:Name="CloseButton"
+                            Grid.Column="1"
+                            Width="28" Height="28"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="CancelButton_Click"
+                            ToolTip="Cerrar"
+                            VerticalAlignment="Top">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                                    <Path Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                                          Stroke="{DynamicResource SpkFgSecondaryBrush}"
+                                          StrokeThickness="1.5"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgElevatedBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
+
+                <!-- Body — body fg.secondary, line-height del estilo SpkTypeBodyStyle. -->
+                <TextBlock x:Name="MessageBlock"
+                           Style="{StaticResource SpkTypeBodyStyle}"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,24" />
+
+                <!-- Botones: gap 8px (Margin del Confirm), destructive a la derecha. El Cancel
+                     viene primero en el visual order y por ende en el Tab order. Foco inicial
+                     se pone via FocusManager.FocusedElement en code-behind tras Loaded. -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CancelButton"
+                            Style="{StaticResource SpkSecondaryButtonStyle}"
+                            MinWidth="96"
+                            Click="CancelButton_Click"
+                            IsCancel="True">
+                        <TextBlock x:Name="CancelLabelText" Text="Cancelar" />
+                    </Button>
+                    <Button x:Name="ConfirmButton"
+                            Style="{StaticResource SpkPrimaryButtonStyle}"
+                            MinWidth="96"
+                            Margin="8,0,0,0"
+                            Click="ConfirmButton_Click">
+                        <TextBlock x:Name="ConfirmLabelText" Text="Aceptar" />
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

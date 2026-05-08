@@ -67,6 +67,7 @@ public sealed class JsonSettingsService : ISettingsService
             loaded.General ??= new GeneralSettings();
             loaded.Audio ??= new AudioSettings();
             loaded.Transcription ??= new TranscriptionSettings();
+            loaded.Privacy ??= new PrivacySettings();
             return loaded;
         }
         catch (JsonException ex)

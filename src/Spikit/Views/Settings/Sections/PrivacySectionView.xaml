@@ -5,30 +5,183 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de la sección Privacidad. Implementación real en EP-4.7
-         (toggle historial OFF default + Borrar credenciales). -->
-    <StackPanel>
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Inline radio (mismo patrón que General/Audio sections — duplicación contenida
+             hasta el pulido visual EP-6). -->
+        <Style x:Key="SpkInlineRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,20,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <Ellipse x:Name="OuterCircle"
+                                         Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                         StrokeThickness="1.5"
+                                         Fill="Transparent" />
+                                <Ellipse x:Name="InnerDot"
+                                         Width="8" Height="8"
+                                         Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                         Opacity="0" />
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="InnerDot" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botón destructive — design-system §10 ("destructive: acciones irreversibles
+             como borrar API key"). Como la marca de Spikit es state.error.fg (#FF3B30),
+             el destructive y el primary brand-solid son visualmente equivalentes hoy.
+             Lo declaramos inline para diferenciar la intención semántica del XAML; cuando
+             llegue EP-6 conviene migrarlo a Form.xaml como SpkDestructiveButtonStyle. -->
+        <Style x:Key="SpkDestructiveButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FF5C52" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#E62B20" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionBlockStyle" TargetType="StackPanel">
+            <Setter Property="Margin" Value="0,0,0,32" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+
         <TextBlock Text="Privacidad"
                    Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
+                   Margin="0,0,0,8" />
         <TextBlock Text="Historial local y credenciales guardadas."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
+                   Margin="0,0,0,28" />
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.7."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
+        <!-- Bloque 1 — Historial local de dictados -->
+        <StackPanel Style="{StaticResource SectionBlockStyle}">
+            <TextBlock Text="Historial local de dictados"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12"
+                       TextWrapping="Wrap">
+                <Run Text="Si lo activás, el texto transcrito se guarda en " />
+                <!-- Snippet inline tipo code-tag (estilo GitHub / Notion): bg.muted + radius
+                     pequeño + padding chico + Geist Mono. BaselineAlignment="Center" mantiene
+                     el border alineado verticalmente con el resto del párrafo. -->
+                <InlineUIContainer BaselineAlignment="Center">
+                    <Border Background="{DynamicResource SpkBgMutedBrush}"
+                            BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="6,1">
+                        <TextBlock Text="%AppData%\Spikit\history.json"
+                                   FontFamily="{DynamicResource SpkFontGeistMono}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}" />
+                    </Border>
+                </InlineUIContainer>
+                <Run Text=". Nada se sube a ningún servidor. Podés borrarlo desde la sección Historial." />
+            </TextBlock>
+            <StackPanel Orientation="Horizontal">
+                <RadioButton GroupName="PrivacyHistory"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsHistoryOff, Mode=TwoWay}"
+                             Content="OFF" />
+                <RadioButton GroupName="PrivacyHistory"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsHistoryOn, Mode=TwoWay}"
+                             Content="ON" />
             </StackPanel>
-        </Border>
+        </StackPanel>
+
+        <!-- Bloque 2 — Borrar credenciales guardadas -->
+        <StackPanel>
+            <TextBlock Text="Borrar credenciales guardadas"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Después de borrar, vas a tener que reconfigurar el provider para volver a usar Spikit."
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12"
+                       TextWrapping="Wrap" />
+            <Button Style="{StaticResource SpkDestructiveButtonStyle}"
+                    HorizontalAlignment="Left"
+                    Command="{Binding DeleteApiKeyCommand}"
+                    Content="Borrar API key del sistema" />
+
+            <!-- Inline status post-acción. Design-system §9.11: la app NO usa toast popup
+                 global; los mensajes inline aparecen en su contexto. Visible solo cuando
+                 hay feedback (HasDeleteFeedback=true). El color cambia según éxito/error. -->
+            <Border Margin="0,12,0,0"
+                    Visibility="{Binding HasDeleteFeedback, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding DeleteFeedbackMessage}"
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="13"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDeleteFeedbackError}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+        </StackPanel>
+
     </StackPanel>
 </UserControl>
