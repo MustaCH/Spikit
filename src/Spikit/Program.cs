@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Spikit.Cli;
@@ -15,6 +16,7 @@ using Spikit.Services.PillPosition;
 using Spikit.Services.Provider;
 using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
+using Spikit.Services.SingleInstance;
 using Spikit.Services.Theme;
 using Spikit.Services.Toast;
 using Spikit.Services.Tray;
@@ -36,6 +38,22 @@ public static class Program
     {
         ConfigureSerilog();
 
+        // Single-instance gate (RN-9 / CB-11): se evalúa antes de levantar el host de DI
+        // para evitar inicializar tray, hotkey, audio, etc. en una segunda instancia que
+        // está condenada a salir. El guard pasa al DI como singleton sólo si somos
+        // primary (o degradación de zombie); en modo SecondaryNotified retornamos antes.
+        var bootstrapLoggerFactory = LoggerFactory.Create(b => b.AddSerilog(Log.Logger));
+        var instanceGuard = new SingleInstanceGuard(
+            SingleInstanceOptions.Default,
+            bootstrapLoggerFactory.CreateLogger<SingleInstanceGuard>());
+        var acquisition = instanceGuard.TryAcquire();
+        if (acquisition == SingleInstanceAcquisition.SecondaryNotified)
+        {
+            instanceGuard.Dispose();
+            Log.CloseAndFlush();
+            return 0;
+        }
+
         try
         {
             var cliArgs = new CommandLineArgs(args);
@@ -49,6 +67,10 @@ public static class Program
                 .ConfigureServices((ctx, services) =>
                 {
                     services.AddSingleton(cliArgs);
+                    // El guard se mantiene vivo durante toda la sesión: el listener IPC
+                    // sigue corriendo y App.xaml.cs se suscribe a OpenRequested. El DI
+                    // dispara su Dispose en OnExit (ver App.OnExit).
+                    services.AddSingleton<ISingleInstanceGuard>(instanceGuard);
                     services.AddSingleton<App>();
                     services.AddSingleton<MainWindow>();
                     services.AddSingleton<MainWindowViewModel>();

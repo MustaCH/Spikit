@@ -8,12 +8,14 @@ using Spikit.Services.Hotkey;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
+using Spikit.Services.SingleInstance;
 using Spikit.Services.Theme;
 using Spikit.Services.Toast;
 using Spikit.Services.Tray;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
 using Spikit.Views.Onboarding;
+using Spikit.Views.Settings;
 
 namespace Spikit;
 
@@ -22,17 +24,19 @@ public partial class App : Application
     private readonly IHost _host;
     private readonly ILogger<App> _logger;
     private readonly CommandLineArgs _cliArgs;
+    private readonly ISingleInstanceGuard _instanceGuard;
 
     // True una vez que entramos al modo MainApp (pill + orchestrator activos). Evita
     // double-Start si la transición onboarding→main se dispara dos veces (no debería
     // pasar, pero el costo de chequearlo es trivial).
     private bool _mainAppActive;
 
-    public App(IHost host, ILogger<App> logger, CommandLineArgs cliArgs)
+    public App(IHost host, ILogger<App> logger, CommandLineArgs cliArgs, ISingleInstanceGuard instanceGuard)
     {
         _host = host;
         _logger = logger;
         _cliArgs = cliArgs;
+        _instanceGuard = instanceGuard;
         InitializeComponent();
     }
 
@@ -41,6 +45,11 @@ public partial class App : Application
         await _host.StartAsync();
 
         _logger.LogInformation("App started");
+
+        // RN-9 / CB-11: cuando una segunda instancia se lance, el listener IPC dispara
+        // este evento desde un thread del threadpool. Marshalamos al UI thread y
+        // decidimos qué window traer al frente según el modo activo.
+        _instanceGuard.OpenRequested += OnExternalOpenRequested;
 
         // Bootstrap del tema: leemos el setting persistido y lo aplicamos antes de mostrar
         // ventanas. Si el archivo no existe (primera ejecución) o está corrupto, queda
@@ -174,9 +183,65 @@ public partial class App : Application
         }
     }
 
+    private void OnExternalOpenRequested(object? sender, EventArgs e)
+    {
+        // El evento llega desde un thread del threadpool del listener IPC. WPF requiere
+        // marshalar a la dispatcher antes de tocar windows. BeginInvoke (no Invoke) para
+        // no bloquear al listener — la suscripción puede correr en un loop posterior.
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (_mainAppActive)
+                {
+                    _logger.LogInformation("OPEN_SETTINGS externo → abriendo SettingsWindow");
+                    _host.Services.GetRequiredService<ISettingsWindowPresenter>().Open();
+                    return;
+                }
+
+                // Caso edge: la primera instancia está en onboarding o en --diagnostics-poc.
+                // No tiene tray ni Settings inicializados; lo más útil es traer al frente
+                // la ventana principal del modo actual para que el usuario vea que la app
+                // ya está corriendo y no quede confundido.
+                if (TryBringActiveBootstrapWindowToFront())
+                {
+                    _logger.LogInformation("OPEN_SETTINGS externo → ventana de bootstrap traída al frente");
+                    return;
+                }
+
+                _logger.LogWarning("OPEN_SETTINGS externo recibido pero no hay window que traer al frente");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error procesando OPEN_SETTINGS externo");
+            }
+        });
+    }
+
+    private bool TryBringActiveBootstrapWindowToFront()
+    {
+        foreach (Window window in Windows)
+        {
+            if (window is OnboardingWindow or PocLatencyWindow)
+            {
+                if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+                window.Activate();
+                window.Topmost = true;
+                window.Topmost = false;
+                window.Focus();
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected override async void OnExit(ExitEventArgs e)
     {
         _logger.LogInformation("App exiting");
+
+        _instanceGuard.OpenRequested -= OnExternalOpenRequested;
+        try { _instanceGuard.Dispose(); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Error disposing single-instance guard"); }
 
         if (_mainAppActive)
         {
