@@ -51,6 +51,7 @@ $csprojPath = Join-Path $repoRoot "src\Spikit\Spikit.csproj"
 $publishDir = Join-Path $repoRoot "publish"
 $releasesDir = Join-Path $repoRoot "Releases"
 $iconPath = Join-Path $repoRoot "assets\icono\icono.ico"
+$splashPath = Join-Path $repoRoot "assets\installer\splash.png"
 
 if (-not $Version) {
     $csprojContent = Get-Content $csprojPath -Raw
@@ -110,6 +111,11 @@ $vpkArgs = @(
     "--shortcuts", "Desktop,StartMenuRoot",
     "-y"
 )
+# Splash custom (assets/installer/splash.png). Solo se pasa si existe — el script
+# no falla si alguien borro el asset o todavia no lo regenero.
+if (Test-Path $splashPath) {
+    $vpkArgs += @("--splashImage", $splashPath)
+}
 
 & $vpkPath @vpkArgs
 if ($LASTEXITCODE -ne 0) { throw "vpk pack fallo (exit $LASTEXITCODE)" }

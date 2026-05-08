@@ -89,17 +89,25 @@ jobs:
       - name: Velopack pack
         shell: pwsh
         run: |
-          vpk pack `
-            --packId Spikit `
-            --packVersion ${{ steps.ver.outputs.version }} `
-            --packDir publish `
-            --packAuthors "Ignacio Poletti" `
-            --packTitle "Spikit" `
-            --icon assets/icono/icono.ico `
-            --mainExe Spikit.exe `
-            --outputDir Releases `
-            --shortcuts Desktop,StartMenuRoot `
-            -y
+          $args = @(
+            "pack",
+            "--packId", "Spikit",
+            "--packVersion", "${{ steps.ver.outputs.version }}",
+            "--packDir", "publish",
+            "--packAuthors", "Ignacio Poletti",
+            "--packTitle", "Spikit",
+            "--icon", "assets/icono/icono.ico",
+            "--mainExe", "Spikit.exe",
+            "--outputDir", "Releases",
+            "--shortcuts", "Desktop,StartMenuRoot",
+            "-y"
+          )
+          # Splash custom (assets/installer/splash.png). Solo si existe en el
+          # checkout — si alguien todavia no commit del asset, el pack sigue sin error.
+          if (Test-Path "assets/installer/splash.png") {
+            $args += @("--splashImage", "assets/installer/splash.png")
+          }
+          & vpk @args
 
       - name: Velopack upload to GitHub Releases
         shell: pwsh
