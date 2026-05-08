@@ -24,7 +24,8 @@ public sealed class SettingsViewModel : ViewModelBase
         HotkeySectionViewModel hotkey,
         GeneralSectionViewModel general,
         AudioSectionViewModel audio,
-        PrivacySectionViewModel privacy)
+        PrivacySectionViewModel privacy,
+        HistorySectionViewModel history)
     {
         _logger = logger;
         Provider = provider;
@@ -32,6 +33,12 @@ public sealed class SettingsViewModel : ViewModelBase
         General = general;
         Audio = audio;
         Privacy = privacy;
+        History = history;
+
+        // History VM dispara NavigateRequested cuando el usuario aprieta "Ir a Privacidad"
+        // desde el empty-state OFF. Lo escuchamos acá y delegamos al NavigateTo del shell.
+        History.NavigateRequested += OnHistoryNavigateRequested;
+
         NavigateToCommand = new RelayCommand<SettingsSection>(NavigateTo);
     }
 
@@ -41,6 +48,12 @@ public sealed class SettingsViewModel : ViewModelBase
     public GeneralSectionViewModel General { get; }
     public AudioSectionViewModel Audio { get; }
     public PrivacySectionViewModel Privacy { get; }
+    public HistorySectionViewModel History { get; }
+
+    private void OnHistoryNavigateRequested(object? sender, SettingsSection target)
+    {
+        NavigateTo(target);
+    }
 
     public SettingsSection CurrentSection
     {

@@ -392,7 +392,8 @@
                                 Visibility="{Binding DataContext.IsPrivacySection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:HistorySectionView
                                 Style="{StaticResource SectionTransitionStyle}"
-                                Visibility="{Binding IsHistorySection, Converter={StaticResource BoolToVis}}"/>
+                                DataContext="{Binding History}"
+                                Visibility="{Binding DataContext.IsHistorySection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:PlanSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
                                 Visibility="{Binding IsPlanSection, Converter={StaticResource BoolToVis}}"/>

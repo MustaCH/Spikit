@@ -78,11 +78,16 @@ public static class Program
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.GeneralSectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.AudioSectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.PrivacySectionViewModel>();
+                    services.AddTransient<Spikit.ViewModels.Settings.Sections.HistorySectionViewModel>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
                     // Modal de confirmación reusable (EP-4.7 — borrar API key; EP-4.8 — borrar
                     // historial). Singleton stateless: cada Confirm() instancia su propia ConfirmDialog.
                     services.AddSingleton<Spikit.ViewModels.Settings.Sections.IConfirmationDialogService,
                                           Spikit.Services.Dialogs.WpfConfirmationDialogService>();
+                    // Historial local (EP-4.8). Store singleton porque mantiene cache en memoria;
+                    // el orchestrator EP-4.10 va a llamar Append cuando privacy.historyEnabled = true.
+                    services.AddSingleton<Spikit.Services.History.IHistoryStore, Spikit.Services.History.JsonHistoryStore>();
+                    services.AddSingleton<Spikit.Services.Clip.IClipboardService, Spikit.Services.Clip.WpfClipboardService>();
 
                     // Servicios de la sección General (EP-4.5). Singletons porque mantienen
                     // estado runtime (theme effective, suscripción a SystemEvents, registry handle).

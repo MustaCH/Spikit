@@ -3,32 +3,426 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Spikit.ViewModels.Settings.Sections"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de la sección Historial. Implementación real en EP-4.8
-         (lista paginada + búsqueda + borrar + estados vacíos). -->
-    <StackPanel>
-        <TextBlock Text="Historial"
-                   Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="Tus dictados guardados localmente."
-                   Style="{StaticResource SpkTypeBodyStyle}"
-                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.8."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
-            </StackPanel>
-        </Border>
-    </StackPanel>
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Botón secundario "Ir a Privacidad → / Limpiar búsqueda / Cargar más". Mismo
+             style visual que SpkSecondaryButtonStyle pero declarado inline porque el
+             ContentPresenter del global usa HorizontalContentAlignment="Center" y acá lo
+             quiero left por la flecha. Cuando el pulido EP-6 unifique esto, el inline cae. -->
+        <Style x:Key="SpkLinkButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgBrandBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock x:Name="Tx"
+                                   Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontFamily="{TemplateBinding FontFamily}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontWeight="{TemplateBinding FontWeight}"
+                                   TextDecorations="None" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Tx" Property="TextDecorations" Value="Underline" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botón destructive (igual al de Privacy section, EP-6 lo va a centralizar). -->
+        <Style x:Key="SpkDestructiveButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FF5C52" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#E62B20" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botón "Cargar más" / "Borrar todo el historial" / etc. Ghost flat secundario. -->
+        <Style x:Key="SpkGhostButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListRow del historial. design-system §9.13. Click expande. Sin selección,
+             sin highlight persistente — sólo hover bg.muted. El delete (🗑) vive afuera
+             del row clickable. -->
+        <Style x:Key="HistoryRowBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="0,12,0,12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 🗑 botón inline. Hover lleva al state.error.fg. -->
+        <Style x:Key="HistoryTrashButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="ToolTip" Value="Borrar este dictado" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SpkBgElevatedBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- DataTemplate de cada fila del historial. La columna izquierda lleva el click
+             del expand (handler en code-behind del UserControl); la columna derecha tiene
+             el botón delete que captura su propio mouseDown y NO burbuja al Border. -->
+        <DataTemplate DataType="{x:Type vm:HistoryEntryViewModel}">
+            <Border x:Name="RowBorder"
+                    Style="{StaticResource HistoryRowBorderStyle}"
+                    MouseLeftButtonUp="HistoryRow_MouseLeftButtonUp">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <!-- Header: "{date} · {time} · {duration} · {process}" -->
+                        <TextBlock Text="{Binding Header}"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SpkFgMutedBrush}" />
+
+                        <!-- Preview one-line — visible cuando NO está expanded. -->
+                        <TextBlock Text="{Binding Preview}"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                   Margin="0,4,0,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- Texto completo + botón Copiar — visibles cuando expanded. -->
+                        <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}"
+                                    Margin="0,4,0,0">
+                            <TextBlock Text="{Binding FullText}"
+                                       FontFamily="{DynamicResource SpkFontGeist}"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                       TextWrapping="Wrap" />
+                            <Button Style="{StaticResource SpkGhostButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,12,0,0"
+                                    Content="Copiar"
+                                    Command="{Binding DataContext.CopyTextCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding Id}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Trash icon: comemos el mouseUp para que NO trigger al ToggleExpand
+                         del Border padre (el handler del UserControl chequea si el originalSource
+                         es un Button para skipear). -->
+                    <Button Grid.Column="1"
+                            Style="{StaticResource HistoryTrashButtonStyle}"
+                            Content="🗑"
+                            VerticalAlignment="Top"
+                            Command="{Binding DataContext.DeleteOneCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding Id}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid MaxWidth="640" HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Header -->
+            <RowDefinition Height="Auto" /> <!-- Search box (ON-with-data y ON-no-search) -->
+            <RowDefinition Height="*" />    <!-- Estados -->
+            <RowDefinition Height="Auto" /> <!-- Footer (Borrar todo) -->
+        </Grid.RowDefinitions>
+
+        <!-- Header común a todos los estados -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,28">
+            <TextBlock Text="Historial"
+                       Style="{StaticResource SpkTypeH1Style}"
+                       Margin="0,0,0,8" />
+            <TextBlock Text="Tus dictados guardados localmente."
+                       Style="{StaticResource SpkTypeBodyStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}" />
+        </StackPanel>
+
+        <!-- Buscador — visible cuando hay datos o cuando hay query con sin resultados.
+             Lo escondemos en empty (ON sin nada) y en OFF para no abrumar visualmente. -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasResults}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding HasNoSearchMatches}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <TextBox x:Name="SearchBox"
+                     Style="{StaticResource SpkTextBoxStyle}"
+                     Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Padding="36,0,12,0" />
+
+            <!-- 🔍 sobrepuesto a la izquierda + placeholder visible cuando vacío -->
+            <TextBlock Text="🔍"
+                       FontSize="14"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Left"
+                       Margin="12,0,0,0"
+                       IsHitTestVisible="False" />
+            <TextBlock Text="Buscar en mis dictados…"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       Foreground="{DynamicResource SpkFgMutedBrush}"
+                       VerticalAlignment="Center"
+                       Margin="36,0,0,0"
+                       IsHitTestVisible="False">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SearchQuery}" Value="">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+
+        <!-- ESTADO 1 — Historial OFF -->
+        <StackPanel Grid.Row="2"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,32,0,0"
+                    Visibility="{Binding IsHistoryOff, Converter={StaticResource BoolToVis}}">
+            <!-- Emojis monocromáticos (📭, 🎙️) se renderizan con el Foreground del TextBlock
+                 cuando no hay color glyph disponible. Sin Foreground explícito caen a casi-negro
+                 sobre el bg.canvas dark — los pintamos con el brand para que tengan presencia. -->
+            <TextBlock Text="📭"
+                       FontSize="48"
+                       Foreground="{DynamicResource SpkBgBrandSolidBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,16" />
+            <TextBlock Text="El historial está desactivado."
+                       Style="{StaticResource SpkTypeBodyLgStyle}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,8" />
+            <TextBlock Text="Activalo en Privacidad para que tus dictados queden guardados localmente."
+                       Style="{StaticResource SpkTypeBodySmStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="360"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,20" />
+            <Button Style="{StaticResource SpkGhostButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Content="Ir a Privacidad →"
+                    Command="{Binding GoToPrivacyCommand}" />
+        </StackPanel>
+
+        <!-- ESTADO 2 — Historial ON sin datos -->
+        <StackPanel Grid.Row="2"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,32,0,0"
+                    Visibility="{Binding IsEmptyOn, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="🎙️"
+                       FontSize="48"
+                       Foreground="{DynamicResource SpkBgBrandSolidBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,16" />
+            <TextBlock Text="Todavía no dictaste nada."
+                       Style="{StaticResource SpkTypeBodyLgStyle}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,8" />
+            <TextBlock Text="Probá tu hotkey en cualquier app y volvé acá para ver el historial."
+                       Style="{StaticResource SpkTypeBodySmStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="360"
+                       HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- ESTADO 3 — Búsqueda sin resultados -->
+        <StackPanel Grid.Row="2"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,16,0,0"
+                    Visibility="{Binding HasNoSearchMatches, Converter={StaticResource BoolToVis}}">
+            <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,16">
+                <Run Text="Ningún dictado coincide con &quot;" />
+                <Run Text="{Binding SearchQuery, Mode=OneWay}" Foreground="{DynamicResource SpkFgPrimaryBrush}" />
+                <Run Text="&quot;." />
+            </TextBlock>
+            <Button Style="{StaticResource SpkLinkButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Content="Limpiar búsqueda"
+                    Command="{Binding ClearSearchCommand}" />
+        </StackPanel>
+
+        <!-- ESTADO 4 — Lista con datos -->
+        <Grid Grid.Row="2"
+              Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ItemsControl Grid.Row="0"
+                          ItemsSource="{Binding VisibleEntries}" />
+
+            <!-- "Cargar más" como fallback al scroll-infinite. Se enabla cuando HasMorePages.
+                 El scroll-infinite del code-behind dispara LoadMoreCommand al acercarse al
+                 final del ScrollViewer host, así que en práctica este botón rara vez es
+                 necesario — se queda como salvavidas accesible. -->
+            <Button Grid.Row="1"
+                    Style="{StaticResource SpkGhostButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Margin="0,16,0,0"
+                    Content="Cargar más"
+                    Command="{Binding LoadMoreCommand}"
+                    Visibility="{Binding HasMorePages, Converter={StaticResource BoolToVis}}" />
+        </Grid>
+
+        <!-- Footer — Borrar todo + Operation feedback. Visible solo si hay datos cargados. -->
+        <StackPanel Grid.Row="3"
+                    Margin="0,24,0,0"
+                    Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+            <Button Style="{StaticResource SpkDestructiveButtonStyle}"
+                    HorizontalAlignment="Left"
+                    Content="Borrar todo el historial"
+                    Command="{Binding DeleteAllCommand}" />
+
+            <Border Margin="0,12,0,0"
+                    Visibility="{Binding HasOperationFeedback, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding OperationFeedback}"
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="13"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkStateSuccessFgBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding OperationFeedbackIsError}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SpkStateErrorFgBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+        </StackPanel>
+    </Grid>
 </UserControl>
