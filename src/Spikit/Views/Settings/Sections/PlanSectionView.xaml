@@ -7,43 +7,38 @@
              Background="Transparent">
 
     <UserControl.Resources>
-        <!-- Botón disabled "Pasar a Pro". Brand solid pero con opacity bajada cuando
-             IsEnabled=false (que es siempre en V1). Cuando exista el upgrade flow
-             (post EP-7), CanUpgradeToPro=true habilita el state normal. -->
-        <Style x:Key="SpkUpgradeButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="18,10" />
-            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
-            <Setter Property="FontSize" Value="14" />
+        <!-- Caption tipo eyebrow ("Plan actual") sobre el badge. Override del SpkTypeCaptionStyle
+             para subir el tono de fg.muted a fg.secondary y dejar el texto en mayúsculas con peso
+             Medium — el TextBlock recibe el string ya en CAPS porque WPF no tiene letter-spacing
+             nativo equivalente al CSS de la spec. -->
+        <Style x:Key="PlanEyebrowStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
             <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="#FF5C52" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
-                                <Setter Property="Cursor" Value="Arrow" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <!-- Badge brand para el plan activo. Variante solid (bg.brand.solid + fg blanco) y no muted
+             porque la card que lo contiene ya tiene tinte brand: un badge muted dentro de fondo
+             muted se mimetiza. El solid asegura contraste y comunica "estás en este plan" de un
+             solo golpe.
+             Radius: md (6px) en vez de pill (§9.8) porque "Lifetime access" es un label largo —
+             pill funciona con badges cortos (NEW, LIVE) pero deforma a óvalo con textos de 10+
+             chars. md preserva el feel "tag" sin caer en óvalo. -->
+        <Style x:Key="PlanBadgeBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource SpkRadiusMd}" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="PlanBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgOnBrandBrush}" />
         </Style>
     </UserControl.Resources>
 
-    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+    <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
 
         <TextBlock Text="Plan"
                    Style="{StaticResource SpkTypeH1Style}"
@@ -51,62 +46,69 @@
         <TextBlock Text="Tu suscripción a Spikit."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,28" />
+                   Margin="0,0,0,24" />
 
-        <!-- Cuadro destacado del plan actual. Identidad visual diferenciada (border 1px
-             brand + bg.brand.muted) para que anticipe el "futuro Pro" sin prometerlo:
-             el día que el upgrade exista, este mismo cuadro va a mostrar el plan Pro. -->
+        <!-- Card destacada (design-system §10.10). Tinte brand sutil + border brand subtle —
+             la única superficie de Settings con identidad visual diferenciada. Anuncia el plan
+             activo + descripción + el upsell dormante a Pro. -->
         <Border Background="{DynamicResource SpkBgBrandMutedBrush}"
-                BorderBrush="{DynamicResource SpkBgBrandSolidBrush}"
+                BorderBrush="{DynamicResource SpkBorderBrandSubtleBrush}"
                 BorderThickness="1"
-                CornerRadius="12"
-                Padding="20"
-                Margin="0,0,0,20">
+                CornerRadius="8"
+                Padding="24"
+                Margin="0,0,0,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Glyph de plan actual: cuadrado relleno brand. Análogo al "▣" del
-                     wireframe — identidad visual minimalista, sin iconografía cargada. -->
-                <Border Grid.Column="0"
-                        Width="18" Height="18"
-                        Background="{DynamicResource SpkBgBrandSolidBrush}"
-                        CornerRadius="4"
-                        Margin="0,4,16,0"
-                        VerticalAlignment="Top" />
+                <!-- Icono Lucide `crown` (mapping §8.3, mismo que el sidebar del Plan).
+                     ViewBox 24×24, stroke 2px, color fg.brand. Refuerza la identidad del plan. -->
+                <Viewbox Grid.Column="0"
+                         Width="24" Height="24"
+                         Margin="0,2,16,0"
+                         VerticalAlignment="Top">
+                    <Path Stroke="{DynamicResource SpkFgBrandBrush}"
+                          StrokeThickness="2"
+                          StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          Data="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z M5 21h14" />
+                </Viewbox>
 
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="{Binding PlanTitle}"
-                               FontFamily="{DynamicResource SpkFontGeist}"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                               Margin="0,0,0,6" />
+                    <TextBlock Text="PLAN ACTUAL"
+                               Style="{StaticResource PlanEyebrowStyle}"
+                               Margin="0,0,0,4" />
+
+                    <Border Style="{StaticResource PlanBadgeBorderStyle}"
+                            Margin="0,0,0,12">
+                        <TextBlock Text="{Binding PlanLabel}"
+                                   Style="{StaticResource PlanBadgeTextStyle}" />
+                    </Border>
+
                     <TextBlock Text="{Binding PlanDescription}"
                                FontFamily="{DynamicResource SpkFontGeist}"
                                FontSize="13"
                                Foreground="{DynamicResource SpkFgSecondaryBrush}"
                                TextWrapping="Wrap"
-                               LineHeight="20" />
+                               LineHeight="20"
+                               MaxWidth="440"
+                               HorizontalAlignment="Left" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Upsell dormante: botón Pro disabled + texto "Próximamente" debajo. -->
-        <StackPanel HorizontalAlignment="Left">
-            <Button Style="{StaticResource SpkUpgradeButtonStyle}"
-                    HorizontalAlignment="Left"
-                    Content="Pasar a Pro"
-                    IsEnabled="{Binding CanUpgradeToPro}"
-                    ToolTip="Próximamente" />
-            <TextBlock Text="Próximamente"
-                       FontFamily="{DynamicResource SpkFontGeist}"
-                       FontSize="12"
-                       Foreground="{DynamicResource SpkFgMutedBrush}"
-                       Margin="2,8,0,0" />
-        </StackPanel>
+        <!-- Upsell dormante: botón secondary disabled. El tooltip "Próximamente" requiere
+             ToolTipService.ShowOnDisabled="True" porque WPF por default no muestra tooltips
+             en botones disabled. CanUpgradeToPro = false en V1, true cuando exista flujo Pro. -->
+        <Button Style="{StaticResource SpkSecondaryButtonStyle}"
+                HorizontalAlignment="Left"
+                Content="Pasar a Pro"
+                IsEnabled="{Binding CanUpgradeToPro}"
+                ToolTip="Próximamente"
+                ToolTipService.ShowOnDisabled="True" />
 
     </StackPanel>
 </UserControl>

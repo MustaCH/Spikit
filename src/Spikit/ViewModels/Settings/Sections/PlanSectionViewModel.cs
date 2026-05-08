@@ -30,7 +30,7 @@ public sealed class PlanSectionViewModel : ViewModelBase
 
     public string PlanDescription => CurrentPlan switch
     {
-        Plan.Lifetime => "Tenés acceso de por vida a Spikit con tu propia API key. Cuando lancemos el plan Pro vas a poder pasarte sin reconfigurar nada.",
+        Plan.Lifetime => "Acceso de por vida usando tu propia api key.",
         _ => string.Empty,
     };
 

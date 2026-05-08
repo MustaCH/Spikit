@@ -28,6 +28,7 @@
     <SolidColorBrush x:Key="SpkBorderSubtleBrush" Color="#1F1F1F" />
     <SolidColorBrush x:Key="SpkBorderStrongBrush" Color="#3B3B3B" />
     <SolidColorBrush x:Key="SpkBorderFocusBrush" Color="#FF3B30" />
+    <SolidColorBrush x:Key="SpkBorderBrandSubtleBrush" Color="#2EFF3B30" />
 
     <!-- State -->
     <SolidColorBrush x:Key="SpkStateSuccessFgBrush" Color="#22C55E" />

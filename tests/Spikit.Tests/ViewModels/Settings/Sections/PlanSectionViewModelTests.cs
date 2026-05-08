@@ -21,7 +21,7 @@ public class PlanSectionViewModelTests
 
         Assert.Equal("Lifetime access", vm.PlanLabel);
         Assert.Equal("Plan actual: Lifetime access", vm.PlanTitle);
-        Assert.Contains("API key", vm.PlanDescription);
+        Assert.Contains("api key", vm.PlanDescription, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
