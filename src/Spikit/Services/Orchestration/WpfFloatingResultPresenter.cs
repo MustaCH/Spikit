@@ -1,16 +1,15 @@
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Spikit.Services.Insertion;
+using Spikit.Models;
 using Spikit.ViewModels;
 using Spikit.Views;
 
 namespace Spikit.Services.Orchestration;
 
-// Implementación real de IFloatingResultPresenter usando WPF. Reemplaza el stub
-// LoggingFloatingResultPresenter cuando llegó la sub-task #7. Una sola window se
-// crea on-demand y se reusa: si Show llega de nuevo mientras está visible, actualiza
-// contenido y trae al frente.
+// Implementación real de IFloatingResultPresenter usando WPF. Una sola window se crea
+// on-demand y se reusa: si Show llega de nuevo mientras está visible, actualiza contenido
+// y trae al frente.
 internal sealed class WpfFloatingResultPresenter : IFloatingResultPresenter
 {
     private readonly IServiceProvider _services;
@@ -29,9 +28,9 @@ internal sealed class WpfFloatingResultPresenter : IFloatingResultPresenter
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
 
-    public void Show(string text, InsertionResult reason)
+    public void Show(ResultErrorReason reason, string? text = null, IntPtr targetHwnd = default)
     {
-        _dispatcher.BeginInvoke(() => ShowOnUiThread(text, reason));
+        _dispatcher.BeginInvoke(() => ShowOnUiThread(reason, text, targetHwnd));
     }
 
     public void Hide()
@@ -44,7 +43,7 @@ internal sealed class WpfFloatingResultPresenter : IFloatingResultPresenter
         });
     }
 
-    private void ShowOnUiThread(string text, InsertionResult reason)
+    private void ShowOnUiThread(ResultErrorReason reason, string? text, IntPtr targetHwnd)
     {
         try
         {
@@ -55,7 +54,7 @@ internal sealed class WpfFloatingResultPresenter : IFloatingResultPresenter
                 _currentWindow.Closed += OnWindowClosed;
             }
 
-            _currentViewModel.Configure(text, reason);
+            _currentViewModel.Configure(reason, text, targetHwnd);
             _currentWindow.Show();
             _currentWindow.Activate();
         }

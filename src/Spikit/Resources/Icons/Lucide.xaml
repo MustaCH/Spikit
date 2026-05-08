@@ -1,0 +1,48 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Iconos Lucide v0.487 portados a Geometry XAML para uso con <Path>.
+        ViewBox original: 24x24. Usar Stretch="Uniform" + Width/Height al render.
+        Renderizar siempre con Stroke (no Fill) + StrokeThickness=2 + caps Round.
+
+        Fuente original: https://lucide.dev/icons/
+        Solo se portan los íconos efectivamente usados en el código actual.
+    -->
+
+    <!-- ban: círculo + diagonal cruzando. -->
+    <Geometry x:Key="LucideBanGeometry">
+        M 12,2 A 10,10 0 1,0 12,22 A 10,10 0 1,0 12,2 Z
+        M 4.9,4.9 L 19.1,19.1
+    </Geometry>
+
+    <!-- key-round: llave redonda con punto interno. El punto del notch (cx=16.5 cy=7.5 r=.5)
+         es prácticamente invisible al render, pero forma parte de la silueta canónica. -->
+    <Geometry x:Key="LucideKeyRoundGeometry">
+        M 2,18 v3 c 0,0.6 0.4,1 1,1 h 4 v -3 h 3 v -3 h 2 l 1.4,-1.4 a 6.5,6.5 0 1,0 -4,-4 Z
+        M 16.5,7 A 0.5,0.5 0 0,1 16.5,8 A 0.5,0.5 0 0,1 16.5,7 Z
+    </Geometry>
+
+    <!-- server-crash: dos racks horizontales + dots de status + rayo central. -->
+    <Geometry x:Key="LucideServerCrashGeometry">
+        M 6,10 H 4 a 2,2 0 0,1 -2,-2 V 4 a 2,2 0 0,1 2,-2 h 16 a 2,2 0 0,1 2,2 v 4 a 2,2 0 0,1 -2,2 h -2
+        M 6,14 H 4 a 2,2 0 0,0 -2,2 v 4 a 2,2 0 0,0 2,2 h 16 a 2,2 0 0,0 2,-2 v -4 a 2,2 0 0,0 -2,-2 h -2.343
+        M 6,6 h 0.01
+        M 6,18 h 0.01
+        M 13,6 l -4,6 h 6 l -4,6
+    </Geometry>
+
+    <!-- clock: círculo + manecillas (12→12→16,14). -->
+    <Geometry x:Key="LucideClockGeometry">
+        M 12,2 A 10,10 0 1,0 12,22 A 10,10 0 1,0 12,2 Z
+        M 12,6 L 12,12 L 16,14
+    </Geometry>
+
+    <!-- text-cursor: I-beam (cursor de texto) compuesto de tres serifs. -->
+    <Geometry x:Key="LucideTextCursorGeometry">
+        M 17,22 h -1 a 4,4 0 0,1 -4,-4 V 6 a 4,4 0 0,1 4,-4 h 1
+        M 7,22 h 1 a 4,4 0 0,0 4,-4 v -1
+        M 7,2 h 1 a 4,4 0 0,1 4,4 v 1
+    </Geometry>
+
+</ResourceDictionary>

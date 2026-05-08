@@ -400,26 +400,21 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         catch (TranscriptionException ex)
         {
             _logger.LogError(ex, "Transcripción falló");
-            // US-7.x errores de provider (401, 429, 5xx, sin internet) van a FloatingResultWindow
-            // o toast según corresponda. La distinción fina entre tipos de error es trabajo de
-            // tickets de US-7.1 / US-7.2 / US-7.3 / US-7.4 — hoy todo cae al mismo flujo
-            // genérico de error. Por ahora un toast rojo neutro para no perder el feedback.
-            _toast.Show(
-                ToastSeverity.Error,
-                "Falló la transcripción. Audio descartado.",
-                message: ex.Message,
-                dedupeKey: "transcribe-error");
+            // EP-6.5: errores del provider van a FloatingResultWindow con la variante
+            // correspondiente (V3 401, V4 5xx/red, V5 429). Audio descartado por RN-1.
+            var errorReason = MapTranscriptionExceptionToReason(ex);
+            TransitionTo(DictationState.ShowingFloatingResult);
+            SafeShowFloatingResult(errorReason);
             TransitionTo(DictationState.Idle);
             return;
         }
 
-        // CB-8: Whisper devolvió vacío/whitespace.
+        // CB-8: Whisper devolvió vacío/whitespace. EP-6.5: migrado de toast a FloatingResult V6
+        // (alineado con el resto de errores del provider — el usuario decide activamente).
         if (string.IsNullOrWhiteSpace(transcribedText))
         {
-            _toast.Show(
-                ToastSeverity.Info,
-                "El provider devolvió texto vacío. Probá hablar más claro.",
-                dedupeKey: "whisper-vacio");
+            TransitionTo(DictationState.ShowingFloatingResult);
+            SafeShowFloatingResult(ResultErrorReason.EmptyResult);
             TransitionTo(DictationState.Idle);
             return;
         }
@@ -454,20 +449,42 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
 
         // Paste falló → mostrar FloatingResultWindow (US-2.5). Caso "acción requerida del
         // usuario" (FLOW 5): el FloatingResultWindow es la ruta correcta, no toast.
+        // V1 (PasteFailed): retiene targetHwnd para habilitar "Reintentar pegar".
         TransitionTo(DictationState.ShowingFloatingResult);
-
-        try
-        {
-            _floatingPresenter.Show(transcribedText, insertResult);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "FloatingResultPresenter.Show lanzó excepción");
-        }
+        SafeShowFloatingResult(ResultErrorReason.PasteFailed, transcribedText, _targetHwnd);
 
         // Una vez mostrada la floating window, volvemos a Idle. La ventana en sí
         // tiene su propio lifecycle y se cierra cuando el usuario la cierra.
         TransitionTo(DictationState.Idle);
+    }
+
+    // Mapea TranscriptionException.StatusCode al ResultErrorReason. Errores sin StatusCode
+    // (red, timeout) caen en ServerError (V4) que es el catch-all de "el provider no respondió".
+    private static ResultErrorReason MapTranscriptionExceptionToReason(TranscriptionException ex)
+    {
+        if (ex.StatusCode is null) return ResultErrorReason.ServerError;
+        var code = (int)ex.StatusCode.Value;
+        return code switch
+        {
+            401 => ResultErrorReason.AuthFailed,
+            429 => ResultErrorReason.RateLimit,
+            >= 500 and < 600 => ResultErrorReason.ServerError,
+            _ => ResultErrorReason.ServerError,
+        };
+    }
+
+    // Wrapper try/catch para no propagar excepciones del presenter al state machine.
+    // Si la window no se puede abrir, el log lo deja registrado y el flow sigue a Idle.
+    private void SafeShowFloatingResult(ResultErrorReason reason, string? text = null, IntPtr targetHwnd = default)
+    {
+        try
+        {
+            _floatingPresenter.Show(reason, text, targetHwnd);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "FloatingResultPresenter.Show lanzó excepción para {Reason}", reason);
+        }
     }
 
     private void OnSamplesAvailable(object? sender, short[] samples)

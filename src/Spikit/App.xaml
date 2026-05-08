@@ -21,6 +21,9 @@
 
                 <!-- Estilos compartidos por formularios (TextBox, PasswordBox, ComboBox, etc.). -->
                 <ResourceDictionary Source="Resources/Themes/Components/Form.xaml" />
+
+                <!-- Iconos Lucide como Geometries reutilizables (ban, key-round, etc.). -->
+                <ResourceDictionary Source="Resources/Icons/Lucide.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

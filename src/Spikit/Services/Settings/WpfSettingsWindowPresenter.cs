@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Spikit.ViewModels.Settings;
 using Spikit.Views.Settings;
 
 namespace Spikit.Services.Settings;
@@ -26,12 +27,12 @@ internal sealed class WpfSettingsWindowPresenter : ISettingsWindowPresenter
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
 
-    public void Open()
+    public void Open(SettingsSection? section = null)
     {
-        _dispatcher.BeginInvoke(OpenOnUiThread);
+        _dispatcher.BeginInvoke(() => OpenOnUiThread(section));
     }
 
-    private void OpenOnUiThread()
+    private void OpenOnUiThread(SettingsSection? section)
     {
         try
         {
@@ -39,8 +40,9 @@ internal sealed class WpfSettingsWindowPresenter : ISettingsWindowPresenter
             {
                 _currentWindow = _services.GetRequiredService<SettingsWindow>();
                 _currentWindow.Closed += OnWindowClosed;
+                if (section is { } s) _currentWindow.ViewModel.NavigateTo(s);
                 _currentWindow.Show();
-                _logger.LogDebug("SettingsWindow abierta (instancia nueva)");
+                _logger.LogDebug("SettingsWindow abierta (instancia nueva), section={Section}", section);
                 return;
             }
 
@@ -50,11 +52,13 @@ internal sealed class WpfSettingsWindowPresenter : ISettingsWindowPresenter
                 _currentWindow.WindowState = WindowState.Normal;
             }
 
+            if (section is { } existing) _currentWindow.ViewModel.NavigateTo(existing);
+
             _currentWindow.Activate();
             _currentWindow.Topmost = true;
             _currentWindow.Topmost = false;
             _currentWindow.Focus();
-            _logger.LogDebug("SettingsWindow ya abierta — bring-to-front");
+            _logger.LogDebug("SettingsWindow ya abierta — bring-to-front, section={Section}", section);
         }
         catch (Exception ex)
         {

@@ -1,28 +1,49 @@
 <Window x:Class="Spikit.Views.FloatingResultWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Spikit — Resultado"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Spikit · Resultado"
         Width="520" SizeToContent="Height"
         MinHeight="240" MaxHeight="720"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
+        WindowStyle="None"
         ShowInTaskbar="True"
         Topmost="False"
         Background="{DynamicResource SpkBgCanvasBrush}">
+
+    <!-- Mismo chrome custom que Settings/Onboarding (EP-6.4):
+         - GlassFrameThickness=-1 para que Mica se renderice con WindowStyle=None.
+         - CaptionHeight=44 → la franja superior es draggable salvo el ✕.
+         - ResizeBorderThickness=0 porque ResizeMode=NoResize. -->
+    <WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44"
+                            ResizeBorderThickness="0"
+                            CornerRadius="0"
+                            GlassFrameThickness="-1"
+                            UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
-        <Style TargetType="Button" x:Key="PrimaryButton">
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Botón primary brand-solid. Hover sutil de opacity. -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="100"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
-                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -35,111 +56,241 @@
             </Style.Triggers>
         </Style>
 
-        <Style TargetType="Button" x:Key="SecondaryButton">
-            <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+        <!-- Botón secondary outlined. Hover sube el border al strong. -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
             <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="100"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Botón ✕ del title bar custom. IsHitTestVisibleInChrome para clickear sobre la zona drag. -->
+        <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <Path x:Name="Glyph"
+                                  Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                                  Stroke="{TemplateBinding Foreground}"
+                                  StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Path del ícono hero (Lucide). DataTriggers según IconKey + IconBrushKey del VM —
+             permiten que el theme switch siga funcionando porque los Stroke usan DynamicResource. -->
+        <Style x:Key="HeroIconStyle" TargetType="Path">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/>
+            <Setter Property="StrokeEndLineCap" Value="Round"/>
+            <Setter Property="StrokeLineJoin" Value="Round"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="Fill" Value="Transparent"/>
             <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}"/>
-                </Trigger>
+                <DataTrigger Binding="{Binding IconKey}" Value="LucideBanGeometry">
+                    <Setter Property="Data" Value="{DynamicResource LucideBanGeometry}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IconKey}" Value="LucideKeyRoundGeometry">
+                    <Setter Property="Data" Value="{DynamicResource LucideKeyRoundGeometry}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IconKey}" Value="LucideServerCrashGeometry">
+                    <Setter Property="Data" Value="{DynamicResource LucideServerCrashGeometry}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IconKey}" Value="LucideClockGeometry">
+                    <Setter Property="Data" Value="{DynamicResource LucideClockGeometry}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IconKey}" Value="LucideTextCursorGeometry">
+                    <Setter Property="Data" Value="{DynamicResource LucideTextCursorGeometry}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IconBrushKey}" Value="SpkStateErrorFgBrush">
+                    <Setter Property="Stroke" Value="{DynamicResource SpkStateErrorFgBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IconBrushKey}" Value="SpkStateWarningFgBrush">
+                    <Setter Property="Stroke" Value="{DynamicResource SpkStateWarningFgBrush}"/>
+                </DataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
 
-    <Border Padding="0" CornerRadius="12">
+    <!-- Border outermost: marco subtle 1px (idéntico patrón que Settings/Onboarding).
+         Sin Background propio: el Window.Background del XAML provee el solid de fallback,
+         y DwmHelper.ApplyBackdrop hace Window.Background=Transparent en runtime cuando Mica
+         está activo. -->
+    <Border BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+            BorderThickness="1">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- Header -->
-            <Border Grid.Row="0"
-                    Background="{DynamicResource SpkBgSurfaceBrush}"
-                    Padding="20,14"
-                    BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                    BorderThickness="0,0,0,1">
-                <Grid>
-                    <TextBlock Text="Spikit · Resultado"
-                               FontSize="14" FontWeight="SemiBold"
-                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                               VerticalAlignment="Center"/>
-                    <Button x:Name="CloseHeaderButton"
-                            HorizontalAlignment="Right"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="8,4"
-                            Cursor="Hand"
-                            Command="{Binding CloseCommand}"
-                            Content="✕"
-                            FontSize="14"
-                            Foreground="{DynamicResource SpkFgSecondaryBrush}"/>
-                </Grid>
+            <!-- Glow rojo radial al fondo, anclado al borde inferior. Más sutil que en
+                 Settings (la window es más chica). -->
+            <Border IsHitTestVisible="False">
+                <Border.Background>
+                    <RadialGradientBrush GradientOrigin="0.5,1.05"
+                                         Center="0.5,1.05"
+                                         RadiusX="0.85" RadiusY="0.55">
+                        <GradientStop Offset="0.0" Color="#2EFF3B30"/>
+                        <GradientStop Offset="0.55" Color="#0FFF3B30"/>
+                        <GradientStop Offset="1.0" Color="#00FF3B30"/>
+                    </RadialGradientBrush>
+                </Border.Background>
             </Border>
 
-            <!-- Body -->
-            <StackPanel Grid.Row="1" Margin="24,20,24,0">
-                <TextBlock Text="{Binding Heading}"
-                           FontSize="18" FontWeight="SemiBold"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,6"/>
-                <TextBlock Text="{Binding Description}"
-                           FontSize="13"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,16"/>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44"/>    <!-- Title bar custom (draggable) -->
+                    <RowDefinition Height="*"/>     <!-- Body -->
+                    <RowDefinition Height="Auto"/>  <!-- Footer -->
+                </Grid.RowDefinitions>
 
-                <Border Background="{DynamicResource SpkBgMutedBrush}"
-                        CornerRadius="8"
-                        BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                        BorderThickness="1"
-                        Padding="14,12">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="240">
-                        <TextBox Text="{Binding Text, Mode=OneWay}"
-                                 IsReadOnly="True"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 FontFamily="Consolas, Cascadia Mono, monospace"
-                                 FontSize="13"
-                                 Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"/>
-                    </ScrollViewer>
-                </Border>
-            </StackPanel>
+                <!-- Title bar custom: logo + título a la izquierda, ✕ a la derecha. -->
+                <Grid Grid.Row="0" Background="Transparent">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-            <!-- Footer -->
-            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"
-                        Margin="24,20,24,24">
-                <Button Style="{StaticResource SecondaryButton}"
-                        Command="{Binding CloseCommand}"
-                        Content="Cerrar"
-                        Margin="0,0,12,0"
-                        MinWidth="100"/>
-                <Button Style="{StaticResource PrimaryButton}"
-                        Command="{Binding CopyCommand}"
-                        Content="{Binding CopyButtonLabel}"
-                        MinWidth="180"/>
-            </StackPanel>
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                Margin="14,0,0,0"
+                                VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Resources/Brand/logo_rojo.png"
+                               Height="18" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               VerticalAlignment="Center"/>
+                        <TextBlock Text="Spikit"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0"/>
+                        <TextBlock Text=" · Resultado"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="2"
+                            Style="{StaticResource WindowCloseButtonStyle}"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Click="CloseButton_Click"
+                            ToolTip="Cerrar"/>
+                </Grid>
+
+                <!-- Body: ícono hero + heading + description + textbox (opcional). -->
+                <StackPanel Grid.Row="1" Margin="28,12,28,8" HorizontalAlignment="Stretch">
+                    <Path Style="{StaticResource HeroIconStyle}"
+                          HorizontalAlignment="Left"
+                          Margin="0,0,0,16"/>
+
+                    <TextBlock Text="{Binding Heading}"
+                               FontFamily="{DynamicResource SpkFontGeist}"
+                               FontSize="18" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="{Binding Description}"
+                               FontFamily="{DynamicResource SpkFontGeist}"
+                               FontSize="13"
+                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,20"/>
+
+                    <!-- Textbox solo en variantes con texto recuperable (V1, V6). -->
+                    <Border Background="{DynamicResource SpkBgMutedBrush}"
+                            CornerRadius="8"
+                            BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+                            BorderThickness="1"
+                            Padding="14,12"
+                            Visibility="{Binding ShowText, Converter={StaticResource BoolToVis}}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="240">
+                            <TextBox Text="{Binding Text, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     FontFamily="Consolas, Cascadia Mono, monospace"
+                                     FontSize="13"
+                                     Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"/>
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+
+                <!-- Footer: botones según visibility flags del VM. Cerrar siempre visible. -->
+                <StackPanel Grid.Row="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="28,16,28,24">
+                    <Button Style="{StaticResource SecondaryButton}"
+                            Command="{Binding CloseCommand}"
+                            Content="Cerrar"
+                            Margin="0,0,12,0"/>
+                    <Button Style="{StaticResource SecondaryButton}"
+                            Command="{Binding RetryPasteCommand}"
+                            Content="Reintentar pegar"
+                            Margin="0,0,12,0"
+                            Visibility="{Binding IsRetryPasteVisible, Converter={StaticResource BoolToVis}}"/>
+                    <Button Style="{StaticResource PrimaryButton}"
+                            Command="{Binding OpenSettingsProviderCommand}"
+                            Content="Abrir Settings → Provider"
+                            Visibility="{Binding IsOpenSettingsVisible, Converter={StaticResource BoolToVis}}"/>
+                    <Button Style="{StaticResource PrimaryButton}"
+                            Command="{Binding CopyCommand}"
+                            Content="{Binding CopyButtonLabel}"
+                            Visibility="{Binding IsCopyVisible, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
+            </Grid>
         </Grid>
     </Border>
 </Window>

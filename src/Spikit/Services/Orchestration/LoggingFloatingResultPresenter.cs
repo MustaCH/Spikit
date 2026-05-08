@@ -1,10 +1,9 @@
 using Microsoft.Extensions.Logging;
-using Spikit.Services.Insertion;
+using Spikit.Models;
 
 namespace Spikit.Services.Orchestration;
 
-// Stub temporal hasta que llegue FloatingResultWindow (sub-task #7).
-// Loguea el resultado y permite seguir el flow sin bloquear el sprint.
+// Stub para tests / arranque early: loguea sin levantar window real.
 internal sealed class LoggingFloatingResultPresenter : IFloatingResultPresenter
 {
     private readonly ILogger<LoggingFloatingResultPresenter> _logger;
@@ -14,11 +13,11 @@ internal sealed class LoggingFloatingResultPresenter : IFloatingResultPresenter
         _logger = logger;
     }
 
-    public void Show(string text, InsertionResult reason)
+    public void Show(ResultErrorReason reason, string? text = null, IntPtr targetHwnd = default)
     {
         _logger.LogWarning(
-            "FloatingResultPresenter STUB — paste {Reason}, texto: {Text}",
-            reason, text);
+            "FloatingResultPresenter STUB — reason={Reason}, hasText={HasText}, hasHwnd={HasHwnd}",
+            reason, !string.IsNullOrEmpty(text), targetHwnd != IntPtr.Zero);
     }
 
     public void Hide()

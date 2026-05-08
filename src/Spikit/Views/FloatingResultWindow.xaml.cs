@@ -19,14 +19,18 @@ public partial class FloatingResultWindow : Window
         KeyDown += OnKeyDown;
     }
 
-    // Win11 polish: dark title bar + Mica como backdrop. En Win10 / Win11 < 22H2
-    // degrada silenciosamente al solid bg.canvas del XAML.
+    // Win11 polish: dark title bar + corners redondeados nativos + Mica como backdrop.
+    // Mismo patrón que SettingsWindow/OnboardingWindow (EP-6.4). En Win10/Win11 < 22H2
+    // las llamadas degradan silenciosamente al solid bg.canvas del XAML.
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        DwmHelper.ApplyRoundedCorners(this, DwmWindowCornerPreference.Round);
         DwmHelper.ApplyDarkTitleBar(this);
         DwmHelper.ApplyBackdrop(this, DwmSystemBackdropType.MainWindow);
     }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     private void OnCloseRequested(object? sender, EventArgs e)
     {
