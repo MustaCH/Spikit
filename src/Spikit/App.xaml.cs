@@ -7,6 +7,7 @@ using Spikit.Services.Hotkey;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
+using Spikit.Services.Theme;
 using Spikit.Services.Tray;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
@@ -38,6 +39,12 @@ public partial class App : Application
         await _host.StartAsync();
 
         _logger.LogInformation("App started");
+
+        // Bootstrap del tema: leemos el setting persistido y lo aplicamos antes de mostrar
+        // ventanas. Si el archivo no existe (primera ejecución) o está corrupto, queda
+        // System por default (Dark salvo que Windows reporte Light). Hacerlo acá evita
+        // un flash de tema incorrecto cuando la app arranca con un tema custom guardado.
+        BootstrapTheme();
 
         var completionStore = _host.Services.GetRequiredService<IOnboardingCompletionStore>();
         var mode = StartupRouter.Decide(_cliArgs, completionStore.IsCompleted());
@@ -113,6 +120,21 @@ public partial class App : Application
 
         var main = _host.Services.GetRequiredService<MainWindow>();
         main.Show();
+    }
+
+    private void BootstrapTheme()
+    {
+        try
+        {
+            var settings = _host.Services.GetRequiredService<ISettingsService>().Load();
+            var theme = settings.General.TryToTheme();
+            _host.Services.GetRequiredService<IThemeService>().Apply(theme);
+            _logger.LogInformation("Tema bootstrapped: {Theme}", theme);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Bootstrap del tema falló — queda con el default de App.xaml");
+        }
     }
 
     private void BootstrapHotkey()

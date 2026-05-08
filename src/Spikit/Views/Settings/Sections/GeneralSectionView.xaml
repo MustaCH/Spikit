@@ -3,32 +3,260 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:models="clr-namespace:Spikit.Models"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de la sección General. Implementación real en EP-4.5
-         (Iniciar con Windows + Tema + Posición de la pill). -->
-    <StackPanel>
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Toggle switch (custom). Track ovalado + thumb circular. Brand cuando ON. -->
+        <Style x:Key="SpkSwitchStyle" TargetType="CheckBox">
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="Track"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12">
+                            <Grid>
+                                <Ellipse x:Name="Thumb"
+                                         Width="18" Height="18"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Center"
+                                         Margin="2,0,0,0"
+                                         Fill="{DynamicResource SpkFgPrimaryBrush}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="Thumb" Property="Fill" Value="White" />
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Radio compacto inline para los temas — más liviano que SpkRadioStyle del
+             HotkeySectionView porque no llevamos sub-label. Mismo brand color al checked. -->
+        <Style x:Key="SpkInlineRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,20,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <Ellipse x:Name="OuterCircle"
+                                         Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                         StrokeThickness="1.5"
+                                         Fill="Transparent" />
+                                <Ellipse x:Name="InnerDot"
+                                         Width="8" Height="8"
+                                         Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                         Opacity="0" />
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="InnerDot" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Celda del selector visual de pill anchor (3×2). El "active" muestra punto rojo
+             + border brand; los inactivos muestran círculo hueco con border subtle. -->
+        <Style x:Key="SpkAnchorCellStyle" TargetType="Button">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="48" />
+            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <Grid>
+                                <Ellipse x:Name="DotInactive"
+                                         Width="8" Height="8"
+                                         Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                         StrokeThickness="1.5"
+                                         Fill="Transparent"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center" />
+                                <Ellipse x:Name="DotActive"
+                                         Width="8" Height="8"
+                                         Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                         Opacity="0"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="Bg" Property="BorderThickness" Value="2" />
+                                <Setter TargetName="DotInactive" Property="Opacity" Value="0" />
+                                <Setter TargetName="DotActive" Property="Opacity" Value="1" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Bloque section con título + descripción + contenido. Reusa los tokens de tipografía. -->
+        <Style x:Key="SectionBlockStyle" TargetType="StackPanel">
+            <Setter Property="Margin" Value="0,0,0,32" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+
         <TextBlock Text="General"
                    Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="Iniciar con Windows · Tema · Posición de la pill"
+                   Margin="0,0,0,8" />
+        <TextBlock Text="Comportamiento básico de la app."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
+                   Margin="0,0,0,28" />
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.5."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
+        <!-- Bloque 1 — Iniciar con Windows -->
+        <StackPanel Style="{StaticResource SectionBlockStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Iniciar con Windows"
+                               FontFamily="{DynamicResource SpkFontGeist}"
+                               FontSize="14"
+                               FontWeight="Medium"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}" />
+                    <TextBlock Text="Spikit se abre automáticamente al iniciar sesión en Windows."
+                               Margin="0,2,0,0"
+                               FontFamily="{DynamicResource SpkFontGeist}"
+                               FontSize="13"
+                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <CheckBox Grid.Column="1"
+                          Style="{StaticResource SpkSwitchStyle}"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding IsAutoStart, Mode=TwoWay}" />
+            </Grid>
+        </StackPanel>
+
+        <!-- Bloque 2 — Tema -->
+        <StackPanel Style="{StaticResource SectionBlockStyle}">
+            <TextBlock Text="Tema"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Sistema sigue lo que tengas configurado en Windows."
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12" />
+            <StackPanel Orientation="Horizontal">
+                <RadioButton GroupName="GeneralTheme"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsThemeSystem, Mode=TwoWay}"
+                             Content="Sistema" />
+                <RadioButton GroupName="GeneralTheme"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsThemeDark, Mode=TwoWay}"
+                             Content="Oscuro" />
+                <RadioButton GroupName="GeneralTheme"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsThemeLight, Mode=TwoWay}"
+                             Content="Claro" />
             </StackPanel>
-        </Border>
+        </StackPanel>
+
+        <!-- Bloque 3 — Posición de la pill (selector visual 3×2) -->
+        <StackPanel Style="{StaticResource SectionBlockStyle}">
+            <TextBlock Text="Posición de la pill"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Dónde aparece la pill cuando dictás. Por default abajo-centro."
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12" />
+
+            <!-- Grilla 3×2 con bordes pegados (Margin negativo evita doble borde entre celdas).
+                 Cada celda enlaza Tag a IsAnchorXxx para activar el DataTrigger del style. -->
+            <UniformGrid Columns="3" Rows="2"
+                         HorizontalAlignment="Left">
+                <Button Style="{StaticResource SpkAnchorCellStyle}"
+                        Tag="{Binding IsAnchorTopLeft}"
+                        Command="{Binding SetPillAnchorCommand}"
+                        CommandParameter="{x:Static models:PillAnchor.TopLeft}"
+                        ToolTip="Arriba a la izquierda" />
+                <Button Style="{StaticResource SpkAnchorCellStyle}"
+                        Tag="{Binding IsAnchorTopCenter}"
+                        Command="{Binding SetPillAnchorCommand}"
+                        CommandParameter="{x:Static models:PillAnchor.TopCenter}"
+                        ToolTip="Arriba al centro" />
+                <Button Style="{StaticResource SpkAnchorCellStyle}"
+                        Tag="{Binding IsAnchorTopRight}"
+                        Command="{Binding SetPillAnchorCommand}"
+                        CommandParameter="{x:Static models:PillAnchor.TopRight}"
+                        ToolTip="Arriba a la derecha" />
+                <Button Style="{StaticResource SpkAnchorCellStyle}"
+                        Tag="{Binding IsAnchorBottomLeft}"
+                        Command="{Binding SetPillAnchorCommand}"
+                        CommandParameter="{x:Static models:PillAnchor.BottomLeft}"
+                        ToolTip="Abajo a la izquierda" />
+                <Button Style="{StaticResource SpkAnchorCellStyle}"
+                        Tag="{Binding IsAnchorBottomCenter}"
+                        Command="{Binding SetPillAnchorCommand}"
+                        CommandParameter="{x:Static models:PillAnchor.BottomCenter}"
+                        ToolTip="Abajo al centro (recomendado)" />
+                <Button Style="{StaticResource SpkAnchorCellStyle}"
+                        Tag="{Binding IsAnchorBottomRight}"
+                        Command="{Binding SetPillAnchorCommand}"
+                        CommandParameter="{x:Static models:PillAnchor.BottomRight}"
+                        ToolTip="Abajo a la derecha" />
+            </UniformGrid>
+        </StackPanel>
+
     </StackPanel>
 </UserControl>

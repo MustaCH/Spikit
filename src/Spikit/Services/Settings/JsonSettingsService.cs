@@ -61,8 +61,9 @@ public sealed class JsonSettingsService : ISettingsService
                 _logger.LogWarning("settings.json deserializó null en {Path}, usando defaults", _filePath);
                 return new AppSettings();
             }
-            // Defensa contra archivos viejos sin la sección provider.
+            // Defensa contra archivos viejos sin la sección provider o general.
             loaded.Provider ??= new ProviderSettings();
+            loaded.General ??= new GeneralSettings();
             return loaded;
         }
         catch (JsonException ex)

@@ -21,17 +21,20 @@ public sealed class SettingsViewModel : ViewModelBase
     public SettingsViewModel(
         ILogger<SettingsViewModel> logger,
         ProviderSectionViewModel provider,
-        HotkeySectionViewModel hotkey)
+        HotkeySectionViewModel hotkey,
+        GeneralSectionViewModel general)
     {
         _logger = logger;
         Provider = provider;
         Hotkey = hotkey;
+        General = general;
         NavigateToCommand = new RelayCommand<SettingsSection>(NavigateTo);
     }
 
     // Section VMs — expuestos como properties para DataContext-binding desde el XAML.
     public ProviderSectionViewModel Provider { get; }
     public HotkeySectionViewModel Hotkey { get; }
+    public GeneralSectionViewModel General { get; }
 
     public SettingsSection CurrentSection
     {

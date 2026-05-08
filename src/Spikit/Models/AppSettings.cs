@@ -11,11 +11,57 @@ public sealed class AppSettings
 {
     public ProviderSettings Provider { get; set; } = new();
     public HotkeySettings Hotkey { get; set; } = new();
+    public GeneralSettings General { get; set; } = new();
 
     // Flag persistido al apretar Finalizar o Saltar en el step Prueba (EP-3.7). Mientras
     // sea false, App.OnStartup vuelve a abrir el onboarding al levantar la app. RN-5:
     // sin onboarding completo no se entra al estado de dictado.
     public bool OnboardingCompleted { get; set; }
+}
+
+// Sección "general" — autostart con Windows + tema visual + anchor de la pill (EP-4.5).
+// Los strings se serializan en lowercase al JSON para que sea robusto frente a renames
+// del enum y legible al inspeccionar settings.json a mano. La conversión a enum runtime
+// la hacen TryToTheme/TryToAnchor con fallback a defaults V1.
+public sealed class GeneralSettings
+{
+    public string Theme { get; set; } = "system";
+    public bool AutoStart { get; set; } = false;
+    public string PillAnchor { get; set; } = "bottomCenter";
+
+    public AppTheme TryToTheme() => Theme?.ToLowerInvariant() switch
+    {
+        "dark" => AppTheme.Dark,
+        "light" => AppTheme.Light,
+        _ => AppTheme.System,
+    };
+
+    public PillAnchor TryToAnchor() => PillAnchor?.ToLowerInvariant() switch
+    {
+        "topleft" => Models.PillAnchor.TopLeft,
+        "topcenter" => Models.PillAnchor.TopCenter,
+        "topright" => Models.PillAnchor.TopRight,
+        "bottomleft" => Models.PillAnchor.BottomLeft,
+        "bottomright" => Models.PillAnchor.BottomRight,
+        _ => Models.PillAnchor.BottomCenter,
+    };
+
+    public static string ToThemeId(AppTheme theme) => theme switch
+    {
+        AppTheme.Dark => "dark",
+        AppTheme.Light => "light",
+        _ => "system",
+    };
+
+    public static string ToAnchorId(PillAnchor anchor) => anchor switch
+    {
+        Models.PillAnchor.TopLeft => "topleft",
+        Models.PillAnchor.TopCenter => "topcenter",
+        Models.PillAnchor.TopRight => "topright",
+        Models.PillAnchor.BottomLeft => "bottomleft",
+        Models.PillAnchor.BottomRight => "bottomright",
+        _ => "bottomcenter",
+    };
 }
 
 // Sección "provider" — ver acceptance criteria de EP-3.4. presetId es el enum ProviderPreset

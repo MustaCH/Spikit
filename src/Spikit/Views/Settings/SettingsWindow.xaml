@@ -372,7 +372,8 @@
                         <Grid>
                             <sections:GeneralSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
-                                Visibility="{Binding IsGeneralSection, Converter={StaticResource BoolToVis}}"/>
+                                DataContext="{Binding General}"
+                                Visibility="{Binding DataContext.IsGeneralSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:ProviderSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
                                 DataContext="{Binding Provider}"

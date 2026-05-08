@@ -6,13 +6,16 @@ using Microsoft.Extensions.Options;
 using Serilog;
 using Spikit.Cli;
 using Spikit.Services.Audio;
+using Spikit.Services.Autostart;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
+using Spikit.Services.PillPosition;
 using Spikit.Services.Provider;
 using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
+using Spikit.Services.Theme;
 using Spikit.Services.Tray;
 using Spikit.Services.Transcription;
 using Spikit.ViewModels;
@@ -72,7 +75,14 @@ public static class Program
                     services.AddTransient<SettingsViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.ProviderSectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.HotkeySectionViewModel>();
+                    services.AddTransient<Spikit.ViewModels.Settings.Sections.GeneralSectionViewModel>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
+
+                    // Servicios de la sección General (EP-4.5). Singletons porque mantienen
+                    // estado runtime (theme effective, suscripción a SystemEvents, registry handle).
+                    services.AddSingleton<IAutostartService, RegistryAutostartService>();
+                    services.AddSingleton<IThemeService, WpfThemeService>();
+                    services.AddSingleton<IPillPositionService, WorkAreaPillPositionService>();
 
                     // TrayIcon (EP-4.2) — singleton inicializado en App.EnterMainAppMode.
                     services.AddSingleton<ITrayIconService, WpfTrayIconService>();

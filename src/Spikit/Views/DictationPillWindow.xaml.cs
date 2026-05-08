@@ -2,7 +2,10 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Spikit.Models;
 using Spikit.Native;
+using Spikit.Services.PillPosition;
+using Spikit.Services.Settings;
 using Spikit.ViewModels;
 using Spikit.Views.Controls;
 
@@ -13,24 +16,39 @@ namespace Spikit.Views;
 // robar foco al target del paste y no interceptar clicks.
 public partial class DictationPillWindow : Window
 {
-    private const double BottomMarginPx = 32.0;
+    // El Window contenedor incluye 70 DIPs de padding inferior para el shadow externo —
+    // el "visual" de la pill termina ese pedazo ANTES del Window.Bottom. Para anchors
+    // bottom hay que compensar sumando el padding al Top calculado por el service; para
+    // anchors top no hace falta porque el visual arranca en Window.Top.
     private const double WindowBottomPaddingForShadow = 70.0;
     private static readonly TimeSpan EntryDuration = TimeSpan.FromMilliseconds(520);
     private static readonly TimeSpan LeaveDuration = TimeSpan.FromMilliseconds(420);
     private static readonly TimeSpan CrossFadeDuration = TimeSpan.FromMilliseconds(160);
 
     private readonly DictationPillViewModel _viewModel;
+    private readonly IPillPositionService _positionService;
+    private readonly ISettingsService _settingsService;
     private bool _isEntering;
     private bool _isLeaving;
 
-    public DictationPillWindow(DictationPillViewModel viewModel)
+    public DictationPillWindow(
+        DictationPillViewModel viewModel,
+        IPillPositionService positionService,
+        ISettingsService settingsService)
     {
         _viewModel = viewModel;
+        _positionService = positionService;
+        _settingsService = settingsService;
         InitializeComponent();
         DataContext = viewModel;
 
         _viewModel.VisualModeChanged += OnVisualModeChanged;
         _viewModel.RmsLevelChanged += OnRmsLevelChanged;
+
+        // Cuando el usuario cambia el anchor en Settings → General, el VM persiste y
+        // SettingsChanged se dispara. Reposicionamos solo si la pill ya está cargada
+        // (Loaded), evitando race con el bootstrap inicial.
+        _settingsService.SettingsChanged += OnSettingsChanged;
 
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
@@ -52,18 +70,34 @@ public partial class DictationPillWindow : Window
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        PositionAtBottomCenter();
+        ApplyAnchorFromSettings();
         ApplyVisualMode(_viewModel.VisualMode, animate: false);
     }
 
-    private void PositionAtBottomCenter()
+    private void OnSettingsChanged(object? sender, EventArgs e)
     {
-        // El Border interno tiene Margin=0,0,0,70, entonces el visual bottom de la pill
-        // está a 70px del bottom del Window. Compensamos para que la pill termine a
-        // BottomMarginPx (32) del bottom del work area.
-        var workArea = SystemParameters.WorkArea;
-        Left = workArea.Left + (workArea.Width - Width) / 2;
-        Top = workArea.Bottom - Height - BottomMarginPx + WindowBottomPaddingForShadow;
+        // SettingsChanged puede llegar desde otro thread. Marshall a UI antes de
+        // tocar Window.Left/Top. Si la pill todavía no estaba Loaded, omite — Loaded
+        // hará la primera posición usando el setting vigente.
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!IsLoaded) return;
+            ApplyAnchorFromSettings();
+        });
+    }
+
+    private void ApplyAnchorFromSettings()
+    {
+        var settings = _settingsService.Load();
+        var anchor = settings.General.TryToAnchor();
+        var placement = _positionService.Calculate(anchor, Width, Height);
+        Left = placement.Left;
+        // Para anchors bottom, el Window se extiende 70 DIPs por debajo del visual (shadow
+        // padding). Compensamos para que el visual termine a 32 DIPs del workArea.Bottom.
+        var isBottomAnchor = anchor is PillAnchor.BottomLeft or PillAnchor.BottomCenter or PillAnchor.BottomRight;
+        Top = isBottomAnchor
+            ? placement.Top + WindowBottomPaddingForShadow
+            : placement.Top;
     }
 
     private void OnVisualModeChanged(object? sender, PillVisualMode mode)
@@ -189,6 +223,7 @@ public partial class DictationPillWindow : Window
     {
         _viewModel.VisualModeChanged -= OnVisualModeChanged;
         _viewModel.RmsLevelChanged -= OnRmsLevelChanged;
+        _settingsService.SettingsChanged -= OnSettingsChanged;
         _viewModel.Dispose();
         base.OnClosed(e);
     }
