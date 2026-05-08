@@ -66,6 +66,19 @@ public partial class DictationPillWindow : Window
             | WindowExStyles.WS_EX_TRANSPARENT
             | WindowExStyles.WS_EX_TOOLWINDOW;
         User32.SetWindowLong(hwnd, WindowExStyles.GWL_EXSTYLE, newStyle);
+
+        // Sobre Acrylic en la pill (decisión EP-6.4 — design-system §10.1):
+        // El ticket pedía Acrylic vía DwmHelper.ApplyBackdrop(this, DwmSystemBackdropType.Transient).
+        // No es viable: la pill usa AllowsTransparency=True para el shadow externo + slide-in
+        // animation, y eso elimina el "system frame" del DWM que necesita SystemBackdropType.
+        // El atributo se aplicaría sin error pero DWM lo ignora y no se renderiza nada.
+        //
+        // Alternativas evaluadas (descartadas):
+        //   1. Sacar AllowsTransparency=True → rompe el DropShadowEffect externo y la slide-in.
+        //   2. AccentPolicy (API legacy undocumented de Win10) → calidad visual menor.
+        //
+        // Decisión: la pill mantiene fallback solid #0A0A0A (PillBg). Visual aprobado, los
+        // shadows + glow rojo siguen funcionando y el contraste sobre cualquier app es bueno.
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

@@ -30,10 +30,8 @@ public partial class SettingsWindow : Window
 
     public SettingsViewModel ViewModel { get; }
 
-    // Win11 polish: bordes redondeados nativos + dark title bar + Mica como backdrop.
-    // Mismos atributos que OnboardingWindow para consistencia visual. En sistemas que no
-    // soportan los atributos (Win10, Win11 pre-22H2) los DwmSetWindowAttribute devuelven
-    // hresult de "no soportado" sin romper nada.
+    // Win11 polish: bordes redondeados + dark title bar + Mica como backdrop.
+    // En Win10 / Win11 < 22H2 cada llamada degrada al solid del XAML sin crash.
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -41,14 +39,9 @@ public partial class SettingsWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
 
-        int round = (int)DwmWindowCornerPreference.Round;
-        Dwmapi.DwmSetWindowAttribute(hwnd, DwmWindowAttribute.WindowCornerPreference, ref round, sizeof(int));
-
-        int dark = 1;
-        Dwmapi.DwmSetWindowAttribute(hwnd, DwmWindowAttribute.UseImmersiveDarkMode, ref dark, sizeof(int));
-
-        int mica = (int)DwmSystemBackdropType.MainWindow;
-        Dwmapi.DwmSetWindowAttribute(hwnd, DwmWindowAttribute.SystemBackdropType, ref mica, sizeof(int));
+        DwmHelper.ApplyRoundedCorners(this, DwmWindowCornerPreference.Round);
+        DwmHelper.ApplyDarkTitleBar(this);
+        DwmHelper.ApplyBackdrop(this, DwmSystemBackdropType.MainWindow);
 
         // Hook al WndProc: Windows custom-chrome con WindowStyle=None tiene un bug clásico
         // al maximizar — extiende la window ~7-8px más allá de la pantalla, cortando el

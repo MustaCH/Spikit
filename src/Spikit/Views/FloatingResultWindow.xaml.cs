@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using Spikit.Native;
 using Spikit.ViewModels;
 
 namespace Spikit.Views;
@@ -16,6 +17,15 @@ public partial class FloatingResultWindow : Window
 
         _viewModel.CloseRequested += OnCloseRequested;
         KeyDown += OnKeyDown;
+    }
+
+    // Win11 polish: dark title bar + Mica como backdrop. En Win10 / Win11 < 22H2
+    // degrada silenciosamente al solid bg.canvas del XAML.
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        DwmHelper.ApplyDarkTitleBar(this);
+        DwmHelper.ApplyBackdrop(this, DwmSystemBackdropType.MainWindow);
     }
 
     private void OnCloseRequested(object? sender, EventArgs e)

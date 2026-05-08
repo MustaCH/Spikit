@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Interop;
 using Microsoft.Extensions.Logging;
 using Spikit.Native;
 using Spikit.Services.Orchestration;
@@ -35,16 +34,15 @@ public partial class OnboardingWindow : Window
         _viewModel.PruebaStepEntered += OnPruebaStepEntered;
     }
 
-    // Bordes redondeados nativos en Windows 11 (DwmSetWindowAttribute con CornerPreference=Round).
-    // En Win10 el atributo se ignora silenciosamente y los bordes quedan square — Spikit
-    // está targeteado a Win11+ así que no hay fallback intencional. OnSourceInitialized es el
-    // momento correcto: el HWND existe pero la window todavía no se mostró.
+    // Win11 polish: bordes redondeados + dark title bar + Mica como backdrop.
+    // En Win10 / Win11 < 22H2 cada llamada degrada silenciosamente al solid del XAML.
+    // OnSourceInitialized es el momento correcto: HWND existe, window no se mostró.
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        var hwnd = new WindowInteropHelper(this).Handle;
-        int pref = (int)DwmWindowCornerPreference.Round;
-        Dwmapi.DwmSetWindowAttribute(hwnd, DwmWindowAttribute.WindowCornerPreference, ref pref, sizeof(int));
+        DwmHelper.ApplyRoundedCorners(this, DwmWindowCornerPreference.Round, _logger);
+        DwmHelper.ApplyDarkTitleBar(this, _logger);
+        DwmHelper.ApplyBackdrop(this, DwmSystemBackdropType.MainWindow, _logger);
     }
 
     // Alt+F4 (o cualquier intento de cerrar antes de terminar) confirma con el usuario.

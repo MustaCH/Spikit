@@ -18,11 +18,12 @@
          CaptionHeight=44 hace que los primeros 44px de la window sean draggables (excepto
          elementos hit-testable como el botón ✕). ResizeBorderThickness=0 porque la
          window no es redimensionable (ResizeMode=NoResize). -->
+    <!-- GlassFrameThickness="-1": ver justificación en SettingsWindow.xaml. -->
     <WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="44"
                             ResizeBorderThickness="0"
                             CornerRadius="0"
-                            GlassFrameThickness="0"
+                            GlassFrameThickness="-1"
                             UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
@@ -247,10 +248,12 @@
 
     <!-- Border outermost: marco de 1px sutil + corner radius. Da definición a la window
          cuando no hay chrome nativo. CornerRadius requiere AllowsTransparency, que rompe
-         DPI awareness — lo dejamos en 0 y compensamos con un border sutil. -->
+         DPI awareness — lo dejamos en 0 y compensamos con un border sutil.
+         Sin Background propio: el Window.Background del XAML provee el solid de fallback;
+         si Mica se aplica en Win11 22H2+, DwmHelper.ApplyBackdrop hace Window.Background=Transparent
+         en runtime para destapar el efecto. -->
     <Border BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-            BorderThickness="1"
-            Background="{DynamicResource SpkBgCanvasBrush}">
+            BorderThickness="1">
         <Grid>
             <!-- Glow rojo radial al fondo: anclado al borde inferior. -->
             <Border IsHitTestVisible="False">

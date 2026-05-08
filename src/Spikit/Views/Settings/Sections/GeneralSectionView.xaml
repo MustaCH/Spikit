@@ -86,13 +86,18 @@
             </Setter>
         </Style>
 
-        <!-- Celda del selector visual de pill anchor (3×2). El "active" muestra punto rojo
-             + border brand; los inactivos muestran círculo hueco con border subtle. -->
+        <!-- Celda del selector visual de pill anchor (3×2). Sin fill propio para no chocar
+             contra el Mica del fondo: el border + dot inactive delinean la celda. Hover
+             agrega un sutil brand muted (con alpha del theme). El "active" muestra punto rojo
+             + border brand. -->
         <Style x:Key="SpkAnchorCellStyle" TargetType="Button">
             <Setter Property="Width" Value="64" />
             <Setter Property="Height" Value="48" />
-            <Setter Property="Background" Value="{DynamicResource SpkBgMutedBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderSubtleBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <!-- BorderBrush al fg.primary del theme: contraste pleno con el fondo Mica para
+                 accesibilidad. En light queda border negro, en dark blanco — coincide con
+                 el color de los textos. -->
+            <Setter Property="BorderBrush" Value="{DynamicResource SpkFgPrimaryBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -106,7 +111,7 @@
                             <Grid>
                                 <Ellipse x:Name="DotInactive"
                                          Width="8" Height="8"
-                                         Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                         Stroke="{DynamicResource SpkFgPrimaryBrush}"
                                          StrokeThickness="1.5"
                                          Fill="Transparent"
                                          HorizontalAlignment="Center"
@@ -121,7 +126,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}" />
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgBrandMutedBrush}" />
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
                                 <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBgBrandSolidBrush}" />

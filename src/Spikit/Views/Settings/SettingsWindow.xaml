@@ -21,11 +21,15 @@
          - Resize habilitado (ResizeBorderThickness=6 para drag desde bordes).
          - Min/max/close en lugar de solo close (es ventana normal de app, no wizard).
          - ShowInTaskbar=True. -->
+    <!-- GlassFrameThickness="-1" extiende el system frame del DWM por toda la window.
+         Es requisito para que SystemBackdropType (Mica) se renderice cuando el WindowStyle
+         es None (chrome custom). Con "0" el atributo se aplica al HWND pero DWM no compone
+         el backdrop y el window queda visualmente vacío sobre Background=Transparent. -->
     <WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="44"
                             ResizeBorderThickness="6"
                             CornerRadius="0"
-                            GlassFrameThickness="0"
+                            GlassFrameThickness="-1"
                             UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
@@ -199,12 +203,11 @@
         </Style>
     </Window.Resources>
 
-    <!-- Border outermost: marco 1px subtle + bg canvas. Misma fórmula que OnboardingWindow para
-         dar definición a la window cuando no hay chrome del SO. CornerRadius del DWM (Round)
-         se aplica en code-behind via P/Invoke. -->
+    <!-- Border outermost: marco 1px subtle. Sin Background propio para no tapar la Mica.
+         El Window.Background del XAML provee solid de fallback (Win10 / Win11 < 22H2);
+         en Win11 22H2+ DwmHelper.ApplyBackdrop hace Window.Background=Transparent runtime. -->
     <Border BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-            BorderThickness="1"
-            Background="{DynamicResource SpkBgCanvasBrush}">
+            BorderThickness="1">
         <Grid>
             <!-- Glow rojo radial al fondo, anclado al borde inferior. Idéntico al OnboardingWindow.
                  IsHitTestVisible=False para que no robe clicks al sidebar. -->
@@ -300,11 +303,10 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Sidebar -->
-                    <Border Grid.Column="0"
-                            Background="{DynamicResource SpkBgSurfaceBrush}"
-                            BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                            BorderThickness="0,1,1,0">
+                    <!-- Sidebar — sin background propio y sin border. La separación visual
+                         con el content viene del padding y el indicador de selección, sin
+                         línea divisoria — look más moderno sobre Mica. -->
+                    <Border Grid.Column="0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>     <!-- Items principales -->
@@ -350,9 +352,6 @@
                             </StackPanel>
 
                             <StackPanel Grid.Row="1" Margin="12,8,12,16">
-                                <Border Background="{DynamicResource SpkBorderSubtleBrush}"
-                                        Height="1"
-                                        Margin="8,4,8,8"/>
                                 <Button Style="{StaticResource SidebarItemStyle}"
                                         Content="Sobre la app"
                                         Tag="{Binding IsAboutSelected}"

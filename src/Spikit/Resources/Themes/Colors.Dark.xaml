@@ -5,6 +5,12 @@
     <SolidColorBrush x:Key="SpkBgCanvasBrush" Color="#0A0A0A" />
     <SolidColorBrush x:Key="SpkBgSurfaceBrush" Color="#1A1A1A" />
     <SolidColorBrush x:Key="SpkBgElevatedBrush" Color="#242424" />
+    <!-- Variantes Mica-aware: alpha 75% (#BF) sobre el color base. Se aplican como
+         Window.Background cuando Mica está activa (ver Native/Dwmapi.cs DwmHelper.ApplyBackdrop).
+         Alpha 75% deja respirar la Mica como textura de profundidad sin sacrificar legibilidad
+         de textos. En Win10/sin Mica actúan sobre el color del padre. -->
+    <SolidColorBrush x:Key="SpkBgCanvasMicaBrush" Color="#BF0A0A0A" />
+    <SolidColorBrush x:Key="SpkBgSurfaceMicaBrush" Color="#BF1A1A1A" />
     <SolidColorBrush x:Key="SpkBgMutedBrush" Color="#141414" />
     <SolidColorBrush x:Key="SpkBgOverlayBrush" Color="#99000000" />
     <SolidColorBrush x:Key="SpkBgBrandSolidBrush" Color="#FF3B30" />

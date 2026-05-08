@@ -5,6 +5,9 @@
     <SolidColorBrush x:Key="SpkBgCanvasBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="SpkBgSurfaceBrush" Color="#FAFAFA" />
     <SolidColorBrush x:Key="SpkBgElevatedBrush" Color="#FFFFFF" />
+    <!-- Variantes Mica-aware: ver Colors.Dark.xaml. -->
+    <SolidColorBrush x:Key="SpkBgCanvasMicaBrush" Color="#BFFFFFFF" />
+    <SolidColorBrush x:Key="SpkBgSurfaceMicaBrush" Color="#BFFAFAFA" />
     <SolidColorBrush x:Key="SpkBgMutedBrush" Color="#F4F4F5" />
     <SolidColorBrush x:Key="SpkBgOverlayBrush" Color="#66000000" />
     <SolidColorBrush x:Key="SpkBgBrandSolidBrush" Color="#FF3B30" />
