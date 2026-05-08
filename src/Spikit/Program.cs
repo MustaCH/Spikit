@@ -76,6 +76,7 @@ public static class Program
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.ProviderSectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.HotkeySectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.GeneralSectionViewModel>();
+                    services.AddTransient<Spikit.ViewModels.Settings.Sections.AudioSectionViewModel>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
 
                     // Servicios de la sección General (EP-4.5). Singletons porque mantienen
@@ -83,6 +84,9 @@ public static class Program
                     services.AddSingleton<IAutostartService, RegistryAutostartService>();
                     services.AddSingleton<IThemeService, WpfThemeService>();
                     services.AddSingleton<IPillPositionService, WorkAreaPillPositionService>();
+                    // Sección Audio (EP-4.6). Singleton porque la enumeración no cambia en runtime
+                    // a corto plazo y reusar la instancia evita crear MMDeviceEnumerator innecesarios.
+                    services.AddSingleton<IAudioDeviceEnumerator, NAudioAudioDeviceEnumerator>();
 
                     // TrayIcon (EP-4.2) — singleton inicializado en App.EnterMainAppMode.
                     services.AddSingleton<ITrayIconService, WpfTrayIconService>();

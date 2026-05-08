@@ -12,6 +12,8 @@ public sealed class AppSettings
     public ProviderSettings Provider { get; set; } = new();
     public HotkeySettings Hotkey { get; set; } = new();
     public GeneralSettings General { get; set; } = new();
+    public AudioSettings Audio { get; set; } = new();
+    public TranscriptionSettings Transcription { get; set; } = new();
 
     // Flag persistido al apretar Finalizar o Saltar en el step Prueba (EP-3.7). Mientras
     // sea false, App.OnStartup vuelve a abrir el onboarding al levantar la app. RN-5:
@@ -61,6 +63,31 @@ public sealed class GeneralSettings
         Models.PillAnchor.BottomLeft => "bottomleft",
         Models.PillAnchor.BottomRight => "bottomright",
         _ => "bottomcenter",
+    };
+}
+
+// Sección "audio" (EP-4.6 / US-5.3). DeviceId vacío representa "default del sistema" —
+// lo elegimos como sentinela explícita en lugar de null para que JsonSerializer no tenga
+// que escribir `null` (algunos parsers se confunden) y para mantener el shape "siempre string".
+public sealed class AudioSettings
+{
+    public string DeviceId { get; set; } = string.Empty;
+}
+
+// Sección "transcription" (EP-4.6 / US-5.4). Language es uno de "auto" (default) | "es" | "en".
+// Persistimos como string lowercase coherente con el resto del JSON (provider, general).
+// "auto" se mapea a no enviar el parámetro language a la API de Whisper (auto-detect del provider).
+public sealed class TranscriptionSettings
+{
+    public string Language { get; set; } = "auto";
+
+    // Devuelve null para "auto" (Whisper auto-detect) o "es"/"en" para los códigos ISO-639-1
+    // que la API acepta. Cualquier valor inválido cae a null para no romper el request.
+    public string? ResolveWhisperLanguage() => Language?.ToLowerInvariant() switch
+    {
+        "es" => "es",
+        "en" => "en",
+        _ => null,
     };
 }
 

@@ -61,9 +61,12 @@ public sealed class JsonSettingsService : ISettingsService
                 _logger.LogWarning("settings.json deserializó null en {Path}, usando defaults", _filePath);
                 return new AppSettings();
             }
-            // Defensa contra archivos viejos sin la sección provider o general.
+            // Defensa contra archivos viejos sin las secciones nuevas. Cada feature (Hotkey,
+            // General, Audio, Transcription) extiende sin romper a archivos viejos.
             loaded.Provider ??= new ProviderSettings();
             loaded.General ??= new GeneralSettings();
+            loaded.Audio ??= new AudioSettings();
+            loaded.Transcription ??= new TranscriptionSettings();
             return loaded;
         }
         catch (JsonException ex)

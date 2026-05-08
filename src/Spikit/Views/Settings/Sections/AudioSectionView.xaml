@@ -5,30 +5,110 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de la sección Audio. Implementación real en EP-4.6
-         (dropdown de mic devices + Idioma de transcripción). -->
-    <StackPanel>
+
+    <UserControl.Resources>
+        <!-- Inline radio igual al de la sección General — duplicación contenida hasta que
+             se extraiga a un global en Form.xaml en el pulido visual EP-6. -->
+        <Style x:Key="SpkInlineRadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <Ellipse x:Name="OuterCircle"
+                                         Stroke="{DynamicResource SpkBorderStrongBrush}"
+                                         StrokeThickness="1.5"
+                                         Fill="Transparent" />
+                                <Ellipse x:Name="InnerDot"
+                                         Width="8" Height="8"
+                                         Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                         Opacity="0" />
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                                <Setter TargetName="InnerDot" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+
         <TextBlock Text="Audio"
                    Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="Micrófono e idioma de transcripción."
+                   Margin="0,0,0,8" />
+        <TextBlock Text="Micrófono y idioma de transcripción."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
+                   Margin="0,0,0,28" />
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.6."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
-            </StackPanel>
-        </Border>
+        <!-- Bloque 1 — Micrófono -->
+        <StackPanel Margin="0,0,0,32">
+            <TextBlock Text="Micrófono"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="La próxima sesión de dictado usa el dispositivo elegido."
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12" />
+            <!-- ItemTemplate explícito en lugar de DisplayMemberPath: el custom template
+                 del SpkComboBoxStyle bindea SelectionBoxItem y aplica el ItemTemplate
+                 también a la fila seleccionada (que sino mostraría el ToString() del record). -->
+            <ComboBox Style="{StaticResource SpkComboBoxStyle}"
+                      ItemsSource="{Binding Devices}"
+                      SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Bloque 2 — Idioma de transcripción -->
+        <StackPanel>
+            <TextBlock Text="Idioma de transcripción"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Forzar el idioma reduce errores cuando el provider duda."
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12" />
+            <RadioButton GroupName="AudioLanguage"
+                         Style="{StaticResource SpkInlineRadioStyle}"
+                         IsChecked="{Binding IsLanguageAuto, Mode=TwoWay}"
+                         Content="Auto-detectar" />
+            <RadioButton GroupName="AudioLanguage"
+                         Style="{StaticResource SpkInlineRadioStyle}"
+                         IsChecked="{Binding IsLanguageSpanish, Mode=TwoWay}"
+                         Content="Español" />
+            <RadioButton GroupName="AudioLanguage"
+                         Style="{StaticResource SpkInlineRadioStyle}"
+                         IsChecked="{Binding IsLanguageEnglish, Mode=TwoWay}"
+                         Content="Inglés" />
+        </StackPanel>
+
     </StackPanel>
 </UserControl>

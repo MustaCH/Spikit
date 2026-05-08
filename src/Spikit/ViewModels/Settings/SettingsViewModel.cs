@@ -22,12 +22,14 @@ public sealed class SettingsViewModel : ViewModelBase
         ILogger<SettingsViewModel> logger,
         ProviderSectionViewModel provider,
         HotkeySectionViewModel hotkey,
-        GeneralSectionViewModel general)
+        GeneralSectionViewModel general,
+        AudioSectionViewModel audio)
     {
         _logger = logger;
         Provider = provider;
         Hotkey = hotkey;
         General = general;
+        Audio = audio;
         NavigateToCommand = new RelayCommand<SettingsSection>(NavigateTo);
     }
 
@@ -35,6 +37,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public ProviderSectionViewModel Provider { get; }
     public HotkeySectionViewModel Hotkey { get; }
     public GeneralSectionViewModel General { get; }
+    public AudioSectionViewModel Audio { get; }
 
     public SettingsSection CurrentSection
     {
