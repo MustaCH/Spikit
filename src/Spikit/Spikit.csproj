@@ -9,6 +9,9 @@
     <StartupObject>Spikit.Program</StartupObject>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Versión del producto. La sección "Sobre la app" (EP-4.9) la lee en runtime via
+         Assembly.GetName().Version y la muestra como "Spikit X.Y.Z". -->
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

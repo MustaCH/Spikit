@@ -5,30 +5,35 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de "Sobre la app". Implementación real en EP-4.9
-         (versión, links, créditos). -->
-    <StackPanel>
-        <TextBlock Text="Sobre la app"
-                   Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="Versión, links útiles y créditos."
-                   Style="{StaticResource SpkTypeBodyStyle}"
-                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.9."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
-            </StackPanel>
-        </Border>
-    </StackPanel>
+    <!-- "Sobre la app" minimalista (EP-4.9). Solo logo + nombre + versión, centrado.
+         Sin links / créditos / commit hash — si el usuario quiere más info, accede al
+         repo público. -->
+    <Grid>
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Margin="0,40,0,40">
+
+            <Image Source="pack://application:,,,/Resources/Brand/logo_rojo.png"
+                   Height="48"
+                   Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,16" />
+
+            <TextBlock Text="{Binding ProductName}"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,4" />
+
+            <TextBlock Text="{Binding VersionLabel, StringFormat='v{0}'}"
+                       FontFamily="{DynamicResource SpkFontGeistMono}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       HorizontalAlignment="Center" />
+        </StackPanel>
+    </Grid>
 </UserControl>

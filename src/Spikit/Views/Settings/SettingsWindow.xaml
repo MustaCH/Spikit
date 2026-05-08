@@ -396,10 +396,12 @@
                                 Visibility="{Binding DataContext.IsHistorySection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:PlanSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
-                                Visibility="{Binding IsPlanSection, Converter={StaticResource BoolToVis}}"/>
+                                DataContext="{Binding Plan}"
+                                Visibility="{Binding DataContext.IsPlanSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:AboutSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
-                                Visibility="{Binding IsAboutSection, Converter={StaticResource BoolToVis}}"/>
+                                DataContext="{Binding About}"
+                                Visibility="{Binding DataContext.IsAboutSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                         </Grid>
                     </ScrollViewer>
                 </Grid>

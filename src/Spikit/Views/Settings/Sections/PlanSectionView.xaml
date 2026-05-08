@@ -5,30 +5,108 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Placeholder de la sección Plan. Implementación real en EP-4.9
-         (BYOK read-only en V1 — el upsell al Pro vive en EP-7 dormante). -->
-    <StackPanel>
+
+    <UserControl.Resources>
+        <!-- Botón disabled "Pasar a Pro". Brand solid pero con opacity bajada cuando
+             IsEnabled=false (que es siempre en V1). Cuando exista el upgrade flow
+             (post EP-7), CanUpgradeToPro=true habilita el state normal. -->
+        <Style x:Key="SpkUpgradeButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FF5C52" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel MaxWidth="560" HorizontalAlignment="Stretch">
+
         <TextBlock Text="Plan"
                    Style="{StaticResource SpkTypeH1Style}"
-                   Margin="0,0,0,12"/>
-        <TextBlock Text="Plan actual y datos de la suscripción (BYOK en V1)."
+                   Margin="0,0,0,8" />
+        <TextBlock Text="Tu suscripción a Spikit."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                   Margin="0,0,0,24"/>
+                   Margin="0,0,0,28" />
 
-        <Border Background="{DynamicResource SpkBgSurfaceBrush}"
-                BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+        <!-- Cuadro destacado del plan actual. Identidad visual diferenciada (border 1px
+             brand + bg.brand.muted) para que anticipe el "futuro Pro" sin prometerlo:
+             el día que el upgrade exista, este mismo cuadro va a mostrar el plan Pro. -->
+        <Border Background="{DynamicResource SpkBgBrandMutedBrush}"
+                BorderBrush="{DynamicResource SpkBgBrandSolidBrush}"
                 BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <StackPanel>
-                <TextBlock Text="Pendiente de implementación"
-                           Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Esta sección se completa en EP-4.9."
-                           Style="{StaticResource SpkTypeCaptionStyle}"/>
-            </StackPanel>
+                CornerRadius="12"
+                Padding="20"
+                Margin="0,0,0,20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Glyph de plan actual: cuadrado relleno brand. Análogo al "▣" del
+                     wireframe — identidad visual minimalista, sin iconografía cargada. -->
+                <Border Grid.Column="0"
+                        Width="18" Height="18"
+                        Background="{DynamicResource SpkBgBrandSolidBrush}"
+                        CornerRadius="4"
+                        Margin="0,4,16,0"
+                        VerticalAlignment="Top" />
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding PlanTitle}"
+                               FontFamily="{DynamicResource SpkFontGeist}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                               Margin="0,0,0,6" />
+                    <TextBlock Text="{Binding PlanDescription}"
+                               FontFamily="{DynamicResource SpkFontGeist}"
+                               FontSize="13"
+                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               LineHeight="20" />
+                </StackPanel>
+            </Grid>
         </Border>
+
+        <!-- Upsell dormante: botón Pro disabled + texto "Próximamente" debajo. -->
+        <StackPanel HorizontalAlignment="Left">
+            <Button Style="{StaticResource SpkUpgradeButtonStyle}"
+                    HorizontalAlignment="Left"
+                    Content="Pasar a Pro"
+                    IsEnabled="{Binding CanUpgradeToPro}"
+                    ToolTip="Próximamente" />
+            <TextBlock Text="Próximamente"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="12"
+                       Foreground="{DynamicResource SpkFgMutedBrush}"
+                       Margin="2,8,0,0" />
+        </StackPanel>
+
     </StackPanel>
 </UserControl>
