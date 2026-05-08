@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
 using Spikit.Services.Onboarding;
+using Spikit.Services.Settings;
 
 namespace Spikit.ViewModels.Onboarding;
 
@@ -19,21 +20,30 @@ public sealed class OnboardingViewModel : ViewModelBase
     private readonly ILogger<OnboardingViewModel> _logger;
     private OnboardingStep _currentStep = OnboardingStep.Welcome;
     private bool _isCompleted;
+    private bool _sendCrashReports;
 
     private readonly IOnboardingCompletionStore _completionStore;
+    private readonly ISettingsService _settingsService;
 
     public OnboardingViewModel(
         ILogger<OnboardingViewModel> logger,
         ProviderStepViewModel provider,
         HotkeyStepViewModel hotkey,
         PruebaStepViewModel prueba,
-        IOnboardingCompletionStore completionStore)
+        IOnboardingCompletionStore completionStore,
+        ISettingsService settingsService)
     {
         _logger = logger;
         _completionStore = completionStore;
+        _settingsService = settingsService;
         Provider = provider;
         Hotkey = hotkey;
         Prueba = prueba;
+
+        // Hidratamos el flag desde settings: si el usuario reabre el onboarding tras
+        // haber tocado el toggle en una sesión anterior (que cerró sin apretar Empezar),
+        // el checkbox del step Completed refleja esa preferencia.
+        _sendCrashReports = _settingsService.Load().Privacy.SendCrashReports;
 
         // Suscripciones a eventos de los step VMs: cuando cambia algo que afecta CanGoNext
         // recomputamos y notificamos al CommandManager para que el botón "Siguiente" se
@@ -86,6 +96,37 @@ public sealed class OnboardingViewModel : ViewModelBase
     {
         get => _isCompleted;
         private set => SetProperty(ref _isCompleted, value);
+    }
+
+    // Toggle "Enviar crash reports anónimos" en el step Completed (EP-8.3).
+    // Default OFF coherente con privacy-strict del producto (Q-3 cerrada en infra.md).
+    // Persistencia inmediata vía ISettingsService — si el usuario lo activa y luego
+    // cierra el wizard sin apretar Empezar, la elección se mantiene para el próximo
+    // arranque. El bootstrap de Sentry en Program.cs lee este flag en el siguiente
+    // launch, no en vivo (Sentry SDK es bootstrap-time only).
+    public bool SendCrashReports
+    {
+        get => _sendCrashReports;
+        set
+        {
+            if (!SetProperty(ref _sendCrashReports, value)) return;
+            try
+            {
+                var settings = _settingsService.Load();
+                settings.Privacy.SendCrashReports = value;
+                _settingsService.Save(settings);
+                _logger.LogInformation("Onboarding toggle Privacy.sendCrashReports → {Value}", value);
+            }
+            catch (Exception ex)
+            {
+                // Persistir falló (disco lleno, perms). El estado del VM ya cambió y
+                // el toggle visual refleja la intención del usuario; el próximo cambio
+                // intenta de nuevo. No mostramos error inline porque el toggle es opt-in
+                // — fallar silencioso es mejor UX que un mensaje agresivo en el step
+                // de cierre.
+                _logger.LogWarning(ex, "No se pudo persistir Privacy.sendCrashReports desde el onboarding");
+            }
+        }
     }
 
     // Flags de visibilidad por paso (consumidos via BooleanToVisibilityConverter en XAML).

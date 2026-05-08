@@ -141,7 +141,33 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- Bloque 2 — Borrar credenciales guardadas -->
+        <!-- Bloque 2 — Crash reports anónimos (EP-8.3 / Q-3) -->
+        <StackPanel Style="{StaticResource SectionBlockStyle}">
+            <TextBlock Text="Crash reports anónimos"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                       Margin="0,0,0,4" />
+            <TextBlock FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       Margin="0,0,0,12"
+                       TextWrapping="Wrap"
+                       Text="Si lo activás, se envían reportes de errores a Sentry para ayudarnos a arreglar bugs. No se incluye audio, ni texto transcrito, ni tu API key. El cambio aplica al próximo arranque de la app." />
+            <StackPanel Orientation="Horizontal">
+                <RadioButton GroupName="PrivacyCrashReports"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsCrashReportsOff, Mode=TwoWay}"
+                             Content="OFF" />
+                <RadioButton GroupName="PrivacyCrashReports"
+                             Style="{StaticResource SpkInlineRadioStyle}"
+                             IsChecked="{Binding IsCrashReportsOn, Mode=TwoWay}"
+                             Content="ON" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Bloque 3 — Borrar credenciales guardadas -->
         <StackPanel>
             <TextBlock Text="Borrar credenciales guardadas"
                        FontFamily="{DynamicResource SpkFontGeist}"

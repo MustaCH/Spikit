@@ -7,13 +7,19 @@ using Spikit.Services.Transcription;
 
 namespace Spikit.ViewModels.Settings.Sections;
 
-// VM de la sección Privacidad de Settings (EP-4.7).
+// VM de la sección Privacidad de Settings (EP-4.7 + EP-8.3).
 //
 // Bloque 1 — Toggle "Historial local". Persiste privacy.historyEnabled en settings.json.
 // Default OFF (RN-2). El cableado runtime (que la orquestación REALMENTE escriba history.json
 // cuando el toggle está ON) vive en EP-4.10; acá solo persistimos el flag.
 //
-// Bloque 2 — Borrar API key. Click → confirm modal → DPAPI.Delete + WhisperApiKey.Update("")
+// Bloque 2 — Toggle "Crash reports anónimos". Persiste privacy.sendCrashReports. Default OFF
+// (decisión Q-3 cerrada en docs/infra.md). El bootstrap de Sentry en Program.cs (vía
+// SentryBootstrap) lee este flag al inicio de cada sesión; persistir el cambio acá implica
+// que el SDK se va a activar/desactivar en el PRÓXIMO arranque, no en vivo. UX-wise está
+// OK porque Sentry es bootstrap-time only.
+//
+// Bloque 3 — Borrar API key. Click → confirm modal → DPAPI.Delete + WhisperApiKey.Update("")
 // + flag InlineStatus para feedback. NO se reabre el onboarding automáticamente: la próxima
 // transcripción va a fallar con 401 hasta que el usuario reconfigure el provider en
 // Settings → Provider (decisión explícita del ticket EP-4.7).
@@ -30,6 +36,7 @@ public sealed class PrivacySectionViewModel : ViewModelBase
     private readonly IConfirmationDialogService _confirmationDialog;
 
     private bool _historyEnabled;
+    private bool _sendCrashReports;
     private string? _deleteFeedbackMessage;
     private bool _suppressEffects;
 
@@ -82,7 +89,37 @@ public sealed class PrivacySectionViewModel : ViewModelBase
         }
     }
 
-    // ============ Bloque 2 — Borrar API key ============
+    // ============ Bloque 2 — Crash reports (EP-8.3) ============
+
+    public bool IsCrashReportsOff
+    {
+        get => !_sendCrashReports;
+        set { if (value) SendCrashReports = false; }
+    }
+
+    public bool IsCrashReportsOn
+    {
+        get => _sendCrashReports;
+        set { if (value) SendCrashReports = true; }
+    }
+
+    public bool SendCrashReports
+    {
+        get => _sendCrashReports;
+        set
+        {
+            if (!SetProperty(ref _sendCrashReports, value)) return;
+            OnPropertyChanged(nameof(IsCrashReportsOff));
+            OnPropertyChanged(nameof(IsCrashReportsOn));
+
+            if (_suppressEffects) return;
+
+            PersistSendCrashReports(value);
+            _logger.LogDebug("Privacy.sendCrashReports → {Value}", value);
+        }
+    }
+
+    // ============ Bloque 3 — Borrar API key ============
 
     // Mensaje de feedback inline (design-system §9.11 — la app no usa toast popup global).
     // Se setea a "API key borrada" tras un delete exitoso, o a un mensaje de error si la
@@ -153,9 +190,14 @@ public sealed class PrivacySectionViewModel : ViewModelBase
         {
             var settings = _settingsService.Load();
             _historyEnabled = settings.Privacy.HistoryEnabled;
+            _sendCrashReports = settings.Privacy.SendCrashReports;
+
             OnPropertyChanged(nameof(HistoryEnabled));
             OnPropertyChanged(nameof(IsHistoryOff));
             OnPropertyChanged(nameof(IsHistoryOn));
+            OnPropertyChanged(nameof(SendCrashReports));
+            OnPropertyChanged(nameof(IsCrashReportsOff));
+            OnPropertyChanged(nameof(IsCrashReportsOn));
         }
         finally
         {
@@ -167,6 +209,13 @@ public sealed class PrivacySectionViewModel : ViewModelBase
     {
         var settings = _settingsService.Load();
         settings.Privacy.HistoryEnabled = value;
+        _settingsService.Save(settings);
+    }
+
+    private void PersistSendCrashReports(bool value)
+    {
+        var settings = _settingsService.Load();
+        settings.Privacy.SendCrashReports = value;
         _settingsService.Save(settings);
     }
 }

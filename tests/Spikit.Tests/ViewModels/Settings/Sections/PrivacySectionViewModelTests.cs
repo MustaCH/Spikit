@@ -104,6 +104,77 @@ public class PrivacySectionViewModelTests
         Assert.Equal(saveCountAfterFirst, settings.SaveCount);
     }
 
+    // ===== Crash reports (EP-8.3) =====
+
+    [Fact]
+    public void Bootstrap_send_crash_reports_off_by_default()
+    {
+        var (vm, _, _, _, _) = MakeVm();
+
+        Assert.False(vm.SendCrashReports);
+        Assert.True(vm.IsCrashReportsOff);
+        Assert.False(vm.IsCrashReportsOn);
+    }
+
+    [Fact]
+    public void Bootstrap_loads_persisted_send_crash_reports_true()
+    {
+        var settings = new AppSettings { Privacy = new PrivacySettings { SendCrashReports = true } };
+        var (vm, _, _, _, _) = MakeVm(existingSettings: settings);
+
+        Assert.True(vm.SendCrashReports);
+        Assert.True(vm.IsCrashReportsOn);
+    }
+
+    [Fact]
+    public void Setting_IsCrashReportsOn_true_persists_true()
+    {
+        var (vm, settings, _, _, _) = MakeVm();
+
+        vm.IsCrashReportsOn = true;
+
+        Assert.True(settings.Saved!.Privacy.SendCrashReports);
+        Assert.Equal(1, settings.SaveCount);
+    }
+
+    [Fact]
+    public void Setting_IsCrashReportsOff_true_when_already_on_persists_false()
+    {
+        var settings = new AppSettings { Privacy = new PrivacySettings { SendCrashReports = true } };
+        var (vm, savedSettings, _, _, _) = MakeVm(existingSettings: settings);
+
+        vm.IsCrashReportsOff = true;
+
+        Assert.False(savedSettings.Saved!.Privacy.SendCrashReports);
+    }
+
+    [Fact]
+    public void Setting_send_crash_reports_to_same_value_does_not_persist()
+    {
+        var (vm, settings, _, _, _) = MakeVm();
+        vm.IsCrashReportsOn = true;
+        var saveCountAfterFirst = settings.SaveCount;
+
+        vm.IsCrashReportsOn = true;
+
+        Assert.Equal(saveCountAfterFirst, settings.SaveCount);
+    }
+
+    [Fact]
+    public void Toggling_history_does_not_disturb_crash_reports_persisted_value()
+    {
+        // Resguardo de aliasing: las dos persistencias usan settings.Privacy del mismo
+        // AppSettings cargado, así que un toggle del historial no debería pisar el flag
+        // de crash reports si el usuario lo había activado antes.
+        var existing = new AppSettings { Privacy = new PrivacySettings { SendCrashReports = true } };
+        var (vm, settings, _, _, _) = MakeVm(existingSettings: existing);
+
+        vm.IsHistoryOn = true;
+
+        Assert.True(settings.Saved!.Privacy.SendCrashReports);
+        Assert.True(settings.Saved.Privacy.HistoryEnabled);
+    }
+
     // ===== Borrado de API key =====
 
     [Fact]
