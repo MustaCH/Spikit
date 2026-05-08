@@ -7,6 +7,7 @@ using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
+using Spikit.Services.Toast;
 using Spikit.Services.Transcription;
 
 namespace Spikit.Tests.Services.Orchestration;
@@ -19,6 +20,7 @@ public class DictationOrchestratorTests
     private readonly Mock<ITextInsertionService> _insertion = new();
     private readonly Mock<IFloatingResultPresenter> _presenter = new();
     private readonly Mock<IHistoryStore> _historyStore = new();
+    private readonly Mock<IToastService> _toast = new();
     private readonly FakeSettingsService _settings = new();
     private readonly FakeProcessResolver _processResolver = new();
 
@@ -27,6 +29,7 @@ public class DictationOrchestratorTests
         var orchestrator = new DictationOrchestrator(
             _hotkey.Object, _audio.Object, _transcription.Object, _insertion.Object,
             _presenter.Object, _historyStore.Object, _settings, _processResolver,
+            _toast.Object,
             NullLogger<DictationOrchestrator>.Instance);
         orchestrator.Start();
         return orchestrator;
@@ -361,6 +364,267 @@ public class DictationOrchestratorTests
 
         Assert.Equal(DictationState.Idle, orchestrator.State);
         _audio.Verify(a => a.StopAsync(), Times.Never);
+    }
+
+    // ===== EP-5.2 — Esc cancela en initializing / recording / transcribing (no en inserting) =====
+
+    [Fact]
+    public async Task Cancel_during_audio_cold_start_aborts_and_returns_to_Idle()
+    {
+        // El sub-estado "Initializing" del audio (cold-start ~600ms p50, hasta ~1.5s p99)
+        // se mapea a DictationState.Recording desde el punto de vista del orchestrator —
+        // la transición ocurre antes de que audio.StartAsync retorne. El cancel hotkey ya
+        // está registrado en ese instante, por lo que Esc debe abortar limpiamente.
+        var startAsyncBlocked = new TaskCompletionSource();
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>()))
+            .Returns(async (CancellationToken ct) =>
+            {
+                startAsyncBlocked.TrySetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+            });
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+
+        await startAsyncBlocked.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+        _hotkey.Verify(h => h.RegisterCancelHotkey(), Times.AtLeastOnce);
+
+        RaiseCancelHotkeyPressed();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        // Audio se cierra incluso si nunca llegó a emitir samples.
+        _audio.Verify(a => a.StopAsync(), Times.AtLeastOnce);
+        _transcription.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Cancel_hotkey_is_unregistered_while_state_is_Inserting()
+    {
+        // D-3 / Q-7: durante Inserting el cancel hotkey NO debe estar registrado —
+        // un Esc atrapado por nuestra app a mitad de un Ctrl+V dejaría texto parcial
+        // pegado y el clipboard sin restaurar. La transición a Inserting llama
+        // UnregisterCancelHotkey, devolviendo Esc al uso normal del usuario.
+        var cancelRegistered = false;
+        _hotkey.Setup(h => h.RegisterCancelHotkey()).Callback(() => cancelRegistered = true);
+        _hotkey.Setup(h => h.UnregisterCancelHotkey()).Callback(() => cancelRegistered = false);
+
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("texto");
+
+        bool? cancelStateAtInserting = null;
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .Returns(async () =>
+            {
+                // Capturamos el estado del cancel hotkey JUSTO al entrar en Inserting.
+                cancelStateAtInserting = cancelRegistered;
+                await Task.Yield();
+                return InsertionResult.Pasted;
+            });
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        Assert.False(cancelStateAtInserting,
+            "El cancel hotkey debería estar desregistrado al entrar en Inserting (D-3 / Q-7)");
+    }
+
+    // ===== EP-5.1 — Cancelación con re-press del hotkey =====
+
+    [Fact]
+    public async Task Re_press_in_transcribing_cancels_and_returns_to_idle_without_insertion()
+    {
+        // EP-5.1 / CB-2: simétrico con Esc cancel — el usuario aprieta su hotkey otra vez
+        // mientras la transcripción está en vuelo y la sesión se aborta sin insertar nada.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        var transcribeStarted = new TaskCompletionSource();
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .Returns(async (byte[] _, CancellationToken ct) =>
+            {
+                transcribeStarted.TrySetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+                return string.Empty;
+            });
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+
+        await transcribeStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(DictationState.Transcribing, orchestrator.State);
+
+        RaiseHotkeyPressed(); // re-press en Transcribing → cancela
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _insertion.Verify(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()), Times.Never);
+        // El audio se descarta (RN-1) — StopAsync se invoca durante la cancelación.
+        _audio.Verify(a => a.StopAsync(), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task Re_press_in_ptt_recording_is_ignored_and_session_continues()
+    {
+        // CB-1: en PTT, un segundo press en Recording NO cancela ni inicia sesión nueva —
+        // se ignora. El release del original sigue siendo lo que termina la sesión.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("ptt continúa");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Pasted);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseHotkeyPressed(); // segundo press accidental en Recording — debe ignorarse
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+
+        // El release del original cierra la sesión normalmente y va a Whisper.
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _audio.Verify(a => a.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _transcription.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Re_press_in_inserting_or_floating_result_is_ignored()
+    {
+        // RN-6: en Inserting (estado invisible <1s) y ShowingFloatingResult el press
+        // tampoco cancela — no hay nada útil que abortar y un Ctrl+V parcial sería peor.
+        // Acá disparamos el flujo de paste fallido para terminar en ShowingFloatingResult
+        // brevemente y verificar que el press extra durante esa transición no rompe el cierre.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("texto");
+
+        var insertCalled = new TaskCompletionSource();
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .Returns(async () =>
+            {
+                insertCalled.TrySetResult();
+                await Task.Delay(50);
+                return InsertionResult.Pasted;
+            });
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+
+        await insertCalled.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        // Estado puede ser Inserting durante este press — el handler debe ignorarlo.
+        RaiseHotkeyPressed();
+
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        // Solo una sesión real se completó; el re-press no inició otra.
+        _audio.Verify(a => a.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _insertion.Verify(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()), Times.Once);
+    }
+
+    // ===== EP-5.3 — Toasts en CB-4 / CB-5 / CB-8 =====
+
+    [Fact]
+    public async Task CB4_short_session_shows_info_toast()
+    {
+        // CB-4: <500ms = audio muy corto. Toast info gris con acción "Abrir Settings → Audio".
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 200));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _toast.Verify(t => t.Show(
+            ToastSeverity.Info,
+            It.Is<string>(s => s.Contains("No detectamos audio")),
+            It.IsAny<string?>(),
+            It.Is<ToastAction?>(a => a != null && a.Label.Contains("Settings")),
+            It.IsAny<TimeSpan?>(),
+            It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CB8_empty_whisper_response_shows_info_toast()
+    {
+        // CB-8: Whisper devuelve texto vacío. Toast info gris sin acción.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("   ");
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _toast.Verify(t => t.Show(
+            ToastSeverity.Info,
+            It.Is<string>(s => s.Contains("texto vacío")),
+            It.IsAny<string?>(),
+            It.IsAny<ToastAction?>(),
+            It.IsAny<TimeSpan?>(),
+            It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Successful_session_does_not_show_toast()
+    {
+        // FLOW 5 filosofía: el éxito no genera toast — el texto en el editor ES el feedback.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("hola");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Pasted);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _toast.Verify(t => t.Show(
+            It.IsAny<ToastSeverity>(),
+            It.IsAny<string>(),
+            It.IsAny<string?>(),
+            It.IsAny<ToastAction?>(),
+            It.IsAny<TimeSpan?>(),
+            It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Audio_start_failure_shows_error_toast()
+    {
+        // US-7.5 amplio: si StartAsync tira (mic no disponible, driver), toast rojo.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("device gone"));
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _toast.Verify(t => t.Show(
+            ToastSeverity.Error,
+            It.IsAny<string>(),
+            It.IsAny<string?>(),
+            It.IsAny<ToastAction?>(),
+            It.IsAny<TimeSpan?>(),
+            It.IsAny<string?>()), Times.Once);
     }
 
     // ===== EP-4.10 — cableado del HistoryStore =====

@@ -3,11 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Spikit.Cli;
+using Spikit.Models;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
 using Spikit.Services.Theme;
+using Spikit.Services.Toast;
 using Spikit.Services.Tray;
 using Spikit.Views;
 using Spikit.Views.Diagnostics;
@@ -157,10 +159,18 @@ public partial class App : Application
         }
         catch (HotkeyRegistrationException ex)
         {
-            // Caso raro pero posible: la combinación persistida ya la tomó otra app.
-            // Logueamos y seguimos arrancando — el usuario va a tener que abrir Settings
-            // (post-EP-4) o re-ejecutar el onboarding para cambiarla.
+            // CB-7: la combinación persistida ya la tomó otra app entre sesiones. Logueamos,
+            // seguimos arrancando (la app sigue siendo útil — Settings, historial, etc.) y
+            // mostramos un toast warning ámbar invitando al usuario a cambiar la combinación.
+            // Auto-dismiss más largo (8s) porque requiere atención del usuario (FLOW 5 / CB-7).
             _logger.LogError(ex, "No se pudo registrar el hotkey al bootstrap ({Hotkey})", definition);
+            var toast = _host.Services.GetRequiredService<IToastService>();
+            toast.Show(
+                ToastSeverity.Warning,
+                "Tu hotkey no pudo registrarse, otra app lo está usando. Cambialo en Settings.",
+                action: new ToastAction("Abrir Settings → Hotkey", () => throw new NotImplementedException()),
+                autoDismiss: TimeSpan.FromSeconds(8),
+                dedupeKey: "hotkey-conflict-startup");
         }
     }
 

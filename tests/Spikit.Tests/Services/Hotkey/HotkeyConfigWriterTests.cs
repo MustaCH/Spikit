@@ -7,6 +7,7 @@ using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
+using Spikit.Services.Toast;
 using Spikit.Services.Transcription;
 
 namespace Spikit.Tests.Services.Hotkey;
@@ -41,6 +42,7 @@ public class HotkeyConfigWriterTests
             new Mock<Spikit.Services.History.IHistoryStore>().Object,
             settings,
             new Mock<ITargetProcessResolver>().Object,
+            new Mock<IToastService>().Object,
             NullLogger<DictationOrchestrator>.Instance);
         var writer = new HotkeyConfigWriter(hotkey, settings, orchestrator, NullLogger<HotkeyConfigWriter>.Instance);
         return (writer, hotkey, settings, orchestrator);

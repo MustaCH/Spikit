@@ -8,6 +8,7 @@ using Spikit.Services.History;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Settings;
+using Spikit.Services.Toast;
 using Spikit.Services.Transcription;
 
 namespace Spikit.Services.Orchestration;
@@ -30,6 +31,7 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
     private readonly IHistoryStore _historyStore;
     private readonly ISettingsService _settingsService;
     private readonly ITargetProcessResolver _processResolver;
+    private readonly IToastService _toast;
     private readonly ILogger<DictationOrchestrator> _logger;
     private readonly Dispatcher _dispatcher;
 
@@ -63,6 +65,7 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         IHistoryStore historyStore,
         ISettingsService settingsService,
         ITargetProcessResolver processResolver,
+        IToastService toast,
         ILogger<DictationOrchestrator> logger)
     {
         _hotkey = hotkey;
@@ -73,6 +76,7 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         _historyStore = historyStore;
         _settingsService = settingsService;
         _processResolver = processResolver;
+        _toast = toast;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
@@ -118,10 +122,6 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
 
     // Disparado en cada transición de estado. La pill se suscribe acá para refrescar visual.
     public event EventHandler<DictationState>? StateChanged;
-
-    // Mensaje user-facing para mostrar en la pill (incluye estados informativos como
-    // "Audio muy corto" / "No detectamos audio" / errores de Whisper).
-    public event EventHandler<string>? PillMessageChanged;
 
     // Texto transcripto exitoso (post-Whisper, pre-insertion). El consumer puede usarlo
     // para mostrar feedback visual o registrar telemetría.
@@ -193,8 +193,19 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
             return;
         }
 
-        // RN-6: en cualquier estado activo distinto de Recording (Transcribing/Inserting/
-        // ShowingFloatingResult), ignoramos nuevos press. Cancelación queda para EP-5.
+        // EP-5.1 / CB-2: re-press del hotkey en Transcribing cancela. Simétrico con Esc cancel
+        // global (Q-7) — el usuario tiene dos atajos para abortar la transcripción en vuelo.
+        // En Recording NO cancelamos: PTT ignora segundo press (CB-1), Toggle ya tiene su
+        // end-session arriba. En Inserting / ShowingFloatingResult tampoco (RN-6: nada útil
+        // que cancelar — Inserting dura <1s y un Ctrl+V parcial sería peor que esperar).
+        if (_state == DictationState.Transcribing)
+        {
+            _logger.LogInformation("Re-press del hotkey en Transcribing — cancelando sesión (EP-5.1)");
+            await CancelSessionAsync().ConfigureAwait(true);
+            return;
+        }
+
+        // RN-6: en Recording (PTT) / Inserting / ShowingFloatingResult, el press se ignora.
         if (_state != DictationState.Idle)
         {
             _logger.LogDebug("HotkeyPressed ignorado, estado actual: {State} (RN-6)", _state);
@@ -213,7 +224,6 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         _sessionCts = new CancellationTokenSource();
 
         TransitionTo(DictationState.Recording);
-        EmitPillMessage("Grabando…");
 
         _recordingTimeoutCts?.Dispose();
         _recordingTimeoutCts = new CancellationTokenSource();
@@ -274,7 +284,15 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         catch (Exception ex)
         {
             _logger.LogError(ex, "AudioCapture.StartAsync falló");
-            EmitPillMessage($"⚠ Audio start falló: {ex.Message}");
+            // US-7.5 amplio: el audio engine no arrancó (mic disconnected, driver, permisos).
+            // Toast rojo bottom-right con acción a Settings → Audio. Action es no-op por ahora;
+            // EP-4.6 (Settings → Audio) la cablea cuando esté listo.
+            _toast.Show(
+                ToastSeverity.Error,
+                "No pudimos abrir el micrófono. Audio descartado.",
+                message: null,
+                action: new ToastAction("Abrir Settings → Audio", () => throw new NotImplementedException()),
+                dedupeKey: "audio-start-failed");
             TransitionTo(DictationState.Idle);
             return;
         }
@@ -284,7 +302,7 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         {
             await Task.Delay(MaxRecordingDuration, ct).ConfigureAwait(true);
             _logger.LogWarning("Recording excedió {Minutes} min — auto-stop (RN-8)", MaxRecordingDuration.TotalMinutes);
-            await EndSessionAsync(reason: "Cortado a 10 min").ConfigureAwait(true);
+            await EndSessionAsync(reason: "limite-10min").ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -327,20 +345,38 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         short[] snapshot;
         lock (_bufferLock) snapshot = _sessionBuffer.ToArray();
 
+        // CB-5 / RN-8: si el límite de 10 min se alcanzó, mostramos toast warning ámbar
+        // ANTES de procesar lo grabado. La transcripción del audio cortado sigue normal.
+        // reason="limite-10min" es el sentinel que pasa StartRecordingAsync al timeout.
+        if (reason == "limite-10min")
+        {
+            _toast.Show(
+                ToastSeverity.Warning,
+                "Límite de 10 minutos alcanzado. Audio descartado.",
+                dedupeKey: "limite-10min");
+            // Tras D-9 el audio cortado se descarta — no transcribimos lo que alcanzamos
+            // a grabar porque el toast dice "Audio descartado" (CB-5 en requirements.md).
+            // El usuario tiene que iniciar otro dictado.
+            TransitionTo(DictationState.Idle);
+            return;
+        }
+
         // CB-4: <500 ms = audio muy corto, no llamamos Whisper.
         if (snapshot.Length < MinSessionSamples)
         {
             _logger.LogInformation(
                 "Sesión muy corta ({Samples} samples = {Ms} ms), no transcribimos (CB-4)",
                 snapshot.Length, snapshot.Length * 1000 / SampleRateHz);
-            EmitPillMessage(reason ?? "Audio muy corto");
+            _toast.Show(
+                ToastSeverity.Info,
+                "No detectamos audio. Probá hablar más fuerte o revisá tu micrófono.",
+                action: new ToastAction("Abrir Settings → Audio", () => throw new NotImplementedException()),
+                dedupeKey: "audio-muy-corto");
             TransitionTo(DictationState.Idle);
-            EmitIdlePrompt();
             return;
         }
 
         TransitionTo(DictationState.Transcribing);
-        EmitPillMessage("Transcribiendo…");
 
         var sw = Stopwatch.StartNew();
         string transcribedText;
@@ -364,18 +400,27 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         catch (TranscriptionException ex)
         {
             _logger.LogError(ex, "Transcripción falló");
-            EmitPillMessage($"⚠ {ex.Message}");
+            // US-7.x errores de provider (401, 429, 5xx, sin internet) van a FloatingResultWindow
+            // o toast según corresponda. La distinción fina entre tipos de error es trabajo de
+            // tickets de US-7.1 / US-7.2 / US-7.3 / US-7.4 — hoy todo cae al mismo flujo
+            // genérico de error. Por ahora un toast rojo neutro para no perder el feedback.
+            _toast.Show(
+                ToastSeverity.Error,
+                "Falló la transcripción. Audio descartado.",
+                message: ex.Message,
+                dedupeKey: "transcribe-error");
             TransitionTo(DictationState.Idle);
-            EmitIdlePrompt();
             return;
         }
 
         // CB-8: Whisper devolvió vacío/whitespace.
         if (string.IsNullOrWhiteSpace(transcribedText))
         {
-            EmitPillMessage("No detectamos audio");
+            _toast.Show(
+                ToastSeverity.Info,
+                "El provider devolvió texto vacío. Probá hablar más claro.",
+                dedupeKey: "whisper-vacio");
             TransitionTo(DictationState.Idle);
-            EmitIdlePrompt();
             return;
         }
 
@@ -388,7 +433,6 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         TryAppendToHistory(transcribedText, snapshot.Length);
 
         TransitionTo(DictationState.Inserting);
-        EmitPillMessage("Pegando…");
 
         InsertionResult insertResult;
         try
@@ -403,17 +447,14 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
 
         if (insertResult == InsertionResult.Pasted)
         {
-            EmitPillMessage("✓ Pegado");
+            // Éxito sin feedback — el texto en el editor ES el feedback (FLOW 5 filosofía).
             TransitionTo(DictationState.Idle);
-            EmitIdlePrompt();
             return;
         }
 
-        // Paste falló → mostrar FloatingResultWindow (US-2.5).
+        // Paste falló → mostrar FloatingResultWindow (US-2.5). Caso "acción requerida del
+        // usuario" (FLOW 5): el FloatingResultWindow es la ruta correcta, no toast.
         TransitionTo(DictationState.ShowingFloatingResult);
-        EmitPillMessage(insertResult == InsertionResult.TargetGone
-            ? "Ventana destino se cerró — texto en ventana flotante"
-            : "No se pudo pegar — texto en ventana flotante");
 
         try
         {
@@ -427,7 +468,6 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         // Una vez mostrada la floating window, volvemos a Idle. La ventana en sí
         // tiene su propio lifecycle y se cierra cuando el usuario la cierra.
         TransitionTo(DictationState.Idle);
-        EmitIdlePrompt();
     }
 
     private void OnSamplesAvailable(object? sender, short[] samples)
@@ -494,18 +534,6 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         {
             _hotkey.UnregisterCancelHotkey();
         }
-    }
-
-    private void EmitPillMessage(string message)
-    {
-        PillMessageChanged?.Invoke(this, message);
-    }
-
-    private void EmitIdlePrompt()
-    {
-        // Pequeña espera implícita: la pill mantiene el último mensaje hasta que el
-        // próximo estado se dispara. No hace falta un timer acá — la sub-task #6
-        // (DictationPillWindow) maneja el fade out y vuelta al estado calmo.
     }
 
     private void EnsureNotDisposed()

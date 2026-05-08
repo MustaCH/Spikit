@@ -59,6 +59,15 @@ internal static class User32
     [DllImport(Dll)]
     public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+    // Posición del cursor del mouse en coordenadas de pantalla virtual (multi-monitor).
+    // Lo usa el ToastService para decidir en qué monitor mostrar el toast (FLOW 5 — D-1).
+    [DllImport(Dll)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport(Dll)]
+    public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
     [DllImport(Dll)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);

@@ -16,6 +16,7 @@ using Spikit.Services.Provider;
 using Spikit.Services.Secrets;
 using Spikit.Services.Settings;
 using Spikit.Services.Theme;
+using Spikit.Services.Toast;
 using Spikit.Services.Tray;
 using Spikit.Services.Transcription;
 using Spikit.ViewModels;
@@ -191,6 +192,13 @@ public static class Program
                     // FloatingResultViewModel es transient: una instancia nueva por window.
                     services.AddTransient<FloatingResultViewModel>();
                     services.AddSingleton<IFloatingResultPresenter, WpfFloatingResultPresenter>();
+
+                    // Toast bottom-right (EP-5.3 / FLOW 5). Host singleton — mantiene la
+                    // lista de windows visibles en memoria. Service singleton también porque
+                    // tiene el state de la cola (max-3, dedupe).
+                    services.AddSingleton<IToastHost, WpfToastHost>();
+                    services.AddSingleton<IToastService, ToastService>();
+
                     services.AddSingleton<DictationOrchestrator>();
                     // Demo mode (EP-4.4) — la implementación es el mismo singleton del orchestrator;
                     // exponemos la interfaz por separado para que la sección Hotkey pueda

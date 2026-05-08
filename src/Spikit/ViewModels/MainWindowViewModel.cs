@@ -4,8 +4,8 @@ using Spikit.Services.Orchestration;
 
 namespace Spikit.ViewModels;
 
-// La MainWindow es chrome de debug del orchestrator: muestra estado + pill message + último
-// texto transcripto. El entry point real a Settings ahora vive en el TrayIcon (EP-4.2);
+// La MainWindow es chrome de debug del orchestrator: muestra estado + último texto
+// transcripto. El entry point real a Settings ahora vive en el TrayIcon (EP-4.2);
 // esta window queda como utilidad de desarrollo. Cerrarla NO cierra la app — el ShutdownMode
 // es OnExplicitShutdown y la app sigue viva por el tray.
 public class MainWindowViewModel : ViewModelBase, IDisposable
@@ -15,7 +15,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly Dispatcher _dispatcher;
 
     private string _state = nameof(DictationState.Idle);
-    private string _pillMessage = "Iniciando…";
     private string _lastTranscription = string.Empty;
     private int _sessionCount;
     private bool _disposed;
@@ -29,7 +28,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _orchestrator.StateChanged += OnStateChanged;
-        _orchestrator.PillMessageChanged += OnPillMessageChanged;
         _orchestrator.TranscriptionCompleted += OnTranscriptionCompleted;
     }
 
@@ -37,12 +35,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
         get => _state;
         private set => SetProperty(ref _state, value);
-    }
-
-    public string PillMessage
-    {
-        get => _pillMessage;
-        private set => SetProperty(ref _pillMessage, value);
     }
 
     public string LastTranscription
@@ -66,11 +58,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         });
     }
 
-    private void OnPillMessageChanged(object? sender, string message)
-    {
-        _dispatcher.BeginInvoke(() => PillMessage = message);
-    }
-
     private void OnTranscriptionCompleted(object? sender, string text)
     {
         _dispatcher.BeginInvoke(() => LastTranscription = text);
@@ -81,7 +68,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         if (_disposed) return;
         _disposed = true;
         _orchestrator.StateChanged -= OnStateChanged;
-        _orchestrator.PillMessageChanged -= OnPillMessageChanged;
         _orchestrator.TranscriptionCompleted -= OnTranscriptionCompleted;
     }
 }
