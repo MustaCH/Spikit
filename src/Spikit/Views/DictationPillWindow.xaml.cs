@@ -23,13 +23,25 @@ public partial class DictationPillWindow : Window
     private const double WindowBottomPaddingForShadow = 70.0;
     private static readonly TimeSpan EntryDuration = TimeSpan.FromMilliseconds(520);
     private static readonly TimeSpan LeaveDuration = TimeSpan.FromMilliseconds(420);
-    private static readonly TimeSpan CrossFadeDuration = TimeSpan.FromMilliseconds(160);
+    // Cross-fade dots → bars al pasar de Initializing a Recording (§10.1 tabla de transiciones).
+    // 80ms fade-out + 80ms fade-in = 160ms total, swap del modo en el medio.
+    private static readonly TimeSpan CrossFadeHalfDuration = TimeSpan.FromMilliseconds(80);
+    // Morph Transcribing → Logo: scale 0.85→1 + opacity hold (las barras vienen visibles).
+    // §10.1 pide cubic-bezier(.2,.7,.2,1) que en WPF aproximamos con QuarticEase EaseOut.
+    private static readonly TimeSpan MorphDuration = TimeSpan.FromMilliseconds(420);
 
     private readonly DictationPillViewModel _viewModel;
     private readonly IPillPositionService _positionService;
     private readonly ISettingsService _settingsService;
+    private PillVisualMode _previousMode = PillVisualMode.Hidden;
+    private ScaleTransform? _logoWaveScale;
     private bool _isEntering;
     private bool _isLeaving;
+
+    // Reduced-motion (`prefers-reduced-motion` equivalente WPF). Si está activo, los cross-fade
+    // y la slide-in se reemplazan por swap inmediato; los morphs internos del LogoWave
+    // (animaciones tick a 60ms) los maneja el control mismo, no la pill.
+    private static bool ReducedMotion => !SystemParameters.ClientAreaAnimation;
 
     public DictationPillWindow(
         DictationPillViewModel viewModel,
@@ -123,42 +135,142 @@ public partial class DictationPillWindow : Window
         Dispatcher.BeginInvoke(() => LogoWaveControl.RmsLevel = rms);
     }
 
-    private void ApplyVisualMode(PillVisualMode mode, bool animate)
+    // State machine de transiciones visuales según prev → new (§10.1 tabla de transiciones).
+    // El VM ya gestiona el timing entre estados (LogoFlashDuration 600ms, LeaveDuration 420ms);
+    // acá solo decidimos qué animación corre en la window al recibir cada evento.
+    private void ApplyVisualMode(PillVisualMode newMode, bool animate)
     {
-        switch (mode)
+        var prev = _previousMode;
+        _previousMode = newMode;
+        if (newMode == prev) return;
+
+        var instant = !animate || ReducedMotion;
+
+        // hidden → cualquier estado visible: slide-in 520ms (FadeIn).
+        if (prev == PillVisualMode.Hidden)
         {
-            case PillVisualMode.Hidden:
-                if (animate) FadeOut();
-                else { RootGrid.Opacity = 0; RootTranslate.Y = 140; }
-                LogoWaveControl.Mode = LogoWaveMode.Idle;
-                break;
+            ApplyBorderAndShadow(quiet: newMode == PillVisualMode.Initializing);
+            LogoWaveControl.Mode = MapToLogoMode(newMode);
+            ResetLogoWaveTransform();
+            if (instant) { RootGrid.Opacity = 1; RootTranslate.Y = 0; }
+            else FadeIn();
+            return;
+        }
 
-            case PillVisualMode.Initializing:
-                ApplyBorderAndShadow(quiet: true);
-                LogoWaveControl.Mode = LogoWaveMode.Initializing;
-                if (animate) FadeIn();
-                break;
+        // cualquier estado visible → leaving o hidden: slide-out 420ms (FadeOut).
+        if (newMode == PillVisualMode.Leaving || newMode == PillVisualMode.Hidden)
+        {
+            if (instant) { RootGrid.Opacity = 0; RootTranslate.Y = 140; LogoWaveControl.Mode = LogoWaveMode.Idle; }
+            else FadeOut();
+            return;
+        }
 
-            case PillVisualMode.Recording:
+        // transcribing → logo: morph 420ms (scale 0.85 → 1 con QuarticEase EaseOut).
+        if (newMode == PillVisualMode.Logo)
+        {
+            ApplyBorderAndShadow(quiet: false);
+            LogoWaveControl.Mode = LogoWaveMode.Logo;
+            if (instant) ResetLogoWaveTransform();
+            else MorphToLogo();
+            return;
+        }
+
+        // initializing → recording: cross-fade dots → bars 160ms + border quiet → active.
+        if (prev == PillVisualMode.Initializing && newMode == PillVisualMode.Recording)
+        {
+            if (instant)
+            {
                 ApplyBorderAndShadow(quiet: false);
                 LogoWaveControl.Mode = LogoWaveMode.Recording;
-                if (animate) FadeIn();
-                break;
-
-            case PillVisualMode.Transcribing:
-                ApplyBorderAndShadow(quiet: false);
-                LogoWaveControl.Mode = LogoWaveMode.Transcribing;
-                break;
-
-            case PillVisualMode.Logo:
-                ApplyBorderAndShadow(quiet: false);
-                LogoWaveControl.Mode = LogoWaveMode.Logo;
-                break;
-
-            case PillVisualMode.Leaving:
-                if (animate) FadeOut();
-                break;
+            }
+            else CrossFadeTo(LogoWaveMode.Recording, quietBorder: false);
+            return;
         }
+
+        // recording → transcribing: in-place change. El smoothing 80ms del LogoWave maneja
+        // la transición de heights; solo cambiamos mode. Border/shadow no cambian.
+        if (prev == PillVisualMode.Recording && newMode == PillVisualMode.Transcribing)
+        {
+            LogoWaveControl.Mode = LogoWaveMode.Transcribing;
+            return;
+        }
+
+        // Cualquier otra transición visible→visible (ej. saltos no esperados de la state machine):
+        // swap directo de border + mode, sin animación. Más seguro que asumir un cross-fade.
+        ApplyBorderAndShadow(quiet: newMode == PillVisualMode.Initializing);
+        LogoWaveControl.Mode = MapToLogoMode(newMode);
+    }
+
+    private static LogoWaveMode MapToLogoMode(PillVisualMode mode) => mode switch
+    {
+        PillVisualMode.Initializing => LogoWaveMode.Initializing,
+        PillVisualMode.Recording => LogoWaveMode.Recording,
+        PillVisualMode.Transcribing => LogoWaveMode.Transcribing,
+        PillVisualMode.Logo => LogoWaveMode.Logo,
+        _ => LogoWaveMode.Idle,
+    };
+
+    // Cross-fade en dos fases: opacity 1 → 0 (80ms) → swap mode + border → opacity 0 → 1 (80ms).
+    // El swap visual ocurre en el punto de invisibilidad para que no se vea ningún glitch.
+    private void CrossFadeTo(LogoWaveMode targetMode, bool quietBorder)
+    {
+        var fadeOut = new DoubleAnimation
+        {
+            From = LogoWaveControl.Opacity,
+            To = 0,
+            Duration = CrossFadeHalfDuration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        fadeOut.Completed += (_, _) =>
+        {
+            ApplyBorderAndShadow(quietBorder);
+            LogoWaveControl.Mode = targetMode;
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = CrossFadeHalfDuration,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            };
+            LogoWaveControl.BeginAnimation(OpacityProperty, fadeIn);
+        };
+        LogoWaveControl.BeginAnimation(OpacityProperty, fadeOut);
+    }
+
+    // Morph al estado Logo: las barras ya están visibles (vienen de transcribing), así que
+    // no hace falta cross-fade de opacity. Solo un scale 0.85 → 1 con easing morph para que
+    // el cambio de heights del LogoWave (recording chase → logo silhouette) se sienta como
+    // que la pill "respira hacia su forma final" en vez de un snap.
+    private void MorphToLogo()
+    {
+        EnsureLogoWaveScale();
+        LogoWaveControl.Opacity = 1;
+
+        var easing = new QuarticEase { EasingMode = EasingMode.EaseOut };
+        var scaleX = new DoubleAnimation { From = 0.85, To = 1, Duration = MorphDuration, EasingFunction = easing };
+        var scaleY = new DoubleAnimation { From = 0.85, To = 1, Duration = MorphDuration, EasingFunction = easing };
+        _logoWaveScale!.BeginAnimation(ScaleTransform.ScaleXProperty, scaleX);
+        _logoWaveScale!.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
+    }
+
+    private void EnsureLogoWaveScale()
+    {
+        if (_logoWaveScale != null) return;
+        _logoWaveScale = new ScaleTransform(1, 1);
+        LogoWaveControl.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+        LogoWaveControl.RenderTransform = _logoWaveScale;
+    }
+
+    // Limpieza del scale al volver a Hidden / iniciar una sesión nueva. Si quedó animado
+    // a 1 (post-MorphToLogo) técnicamente no haría falta, pero preferimos defensivo.
+    private void ResetLogoWaveTransform()
+    {
+        if (_logoWaveScale == null) return;
+        _logoWaveScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        _logoWaveScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        _logoWaveScale.ScaleX = 1;
+        _logoWaveScale.ScaleY = 1;
+        LogoWaveControl.Opacity = 1;
     }
 
     private void ApplyBorderAndShadow(bool quiet)
