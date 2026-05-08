@@ -9,9 +9,35 @@
     <StartupObject>Spikit.Program</StartupObject>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- Versión del producto. La sección "Sobre la app" (EP-4.9) la lee en runtime via
-         Assembly.GetName().Version y la muestra como "Spikit X.Y.Z". -->
+
+    <!-- Branding del ejecutable (EP-8.2). El .ico se genera con assets/icono/build-ico.ps1
+         y se embebe en el .exe via ApplicationIcon — Windows lo usa para Explorer, taskbar,
+         Task Manager, alt-tab y diálogos de UAC. Re-correr el script si cambia el asset
+         fuente (assets/icono/icono_rojo.png). -->
+    <ApplicationIcon>..\..\assets\icono\icono.ico</ApplicationIcon>
+
+    <!-- Metadata del binario (visible en Click derecho → Propiedades → Detalles). El SDK
+         genera AssemblyInfo a partir de estos properties; AssemblyInfo.cs sigue alojando
+         solo los atributos manuales (InternalsVisibleTo + ThemeInfo).
+         Importante: en Win32 FileVersionInfo, el campo "FileDescription" mapea a
+         AssemblyTitleAttribute (no a AssemblyDescriptionAttribute). Por eso el copy
+         largo va en Title — eso es lo que ve el usuario en Task Manager y en la
+         columna "Description" del Explorer. -->
+    <AssemblyTitle>Spikit — dictado por voz para Windows</AssemblyTitle>
+    <Product>Spikit</Product>
+    <Description>Spikit — dictado por voz para Windows</Description>
+    <Company>Ignacio Poletti</Company>
+    <Copyright>© 2026 Ignacio Poletti</Copyright>
+
+    <!-- Versionado V1: la sección "Sobre la app" (EP-4.9) lee Assembly.GetName().Version
+         y la muestra como "Spikit X.Y.Z". AssemblyVersion fija las 4 partes para File-
+         VersionInfo de Windows; FileVersion espeja para que ambos se vean iguales.
+         IncludeSourceRevisionInInformationalVersion=false evita el sufijo `+<sha>` del
+         commit en ProductVersion para que el campo se vea limpio en Properties → Detalles. -->
     <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
