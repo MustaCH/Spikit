@@ -7,45 +7,28 @@ namespace Spikit.Tests.ViewModels.Settings.Sections;
 public class PlanSectionViewModelTests
 {
     [Fact]
-    public void V1_plan_service_returns_BYOK()
+    public void Lifetime_only_plan_service_returns_Lifetime()
     {
-        var service = new V1PlanService();
+        var service = new LifetimeOnlyPlanService();
 
-        Assert.Equal(Plan.BYOK, service.GetCurrent());
+        Assert.Equal(Plan.Lifetime, service.GetCurrent());
     }
 
     [Fact]
-    public void Vm_renders_BYOK_title_and_description()
+    public void Vm_renders_Lifetime_title_and_description()
     {
-        var vm = new PlanSectionViewModel(new V1PlanService());
+        var vm = new PlanSectionViewModel(new LifetimeOnlyPlanService());
 
-        Assert.Equal("BYOK", vm.PlanLabel);
-        Assert.Equal("Plan actual: BYOK", vm.PlanTitle);
+        Assert.Equal("Lifetime access", vm.PlanLabel);
+        Assert.Equal("Plan actual: Lifetime access", vm.PlanTitle);
         Assert.Contains("API key", vm.PlanDescription);
     }
 
     [Fact]
     public void Vm_disables_upgrade_in_v1()
     {
-        var vm = new PlanSectionViewModel(new V1PlanService());
+        var vm = new PlanSectionViewModel(new LifetimeOnlyPlanService());
 
         Assert.False(vm.CanUpgradeToPro);
-    }
-
-    [Fact]
-    public void Vm_renders_Pro_when_service_returns_Pro()
-    {
-        var vm = new PlanSectionViewModel(new FakePlanService(Plan.Pro));
-
-        Assert.Equal("Pro", vm.PlanLabel);
-        Assert.Equal("Plan actual: Pro", vm.PlanTitle);
-        Assert.Contains("Pro", vm.PlanDescription);
-    }
-
-    private sealed class FakePlanService : IPlanService
-    {
-        private readonly Plan _plan;
-        public FakePlanService(Plan plan) => _plan = plan;
-        public Plan GetCurrent() => _plan;
     }
 }

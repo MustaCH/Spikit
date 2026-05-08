@@ -3,13 +3,13 @@ using Spikit.Services.PlanInfo;
 
 namespace Spikit.ViewModels.Settings.Sections;
 
-// VM read-only de la sección Plan (EP-4.9 / US-6.1). Toda la información viene de
-// IPlanService.GetCurrent(). En V1 siempre devuelve BYOK; el día que exista backend
-// Pro, esta VM no cambia — solo refleja el plan real.
+// VM read-only de la sección Plan (US-6.1). Toda la información viene de
+// IPlanService.GetCurrent(). En V1 siempre devuelve Lifetime; el día que exista
+// backend con Free / Pro (V2), esta VM se extiende sumando ramas al switch sin
+// cambiar la forma del componente.
 //
-// El botón "Pasar a Pro" queda disabled (CanUpgradeToPro=false) hasta que exista el
-// flujo de pago. EP-7 es el ticket dormante que va a habilitar este upsell cuando
-// llegue el momento.
+// El botón "Pasar a Pro" queda disabled (CanUpgradeToPro=false) en V1 — funciona
+// como teaser del plan futuro mientras no exista el flujo de pago.
 public sealed class PlanSectionViewModel : ViewModelBase
 {
     public PlanSectionViewModel(IPlanService planService)
@@ -22,8 +22,7 @@ public sealed class PlanSectionViewModel : ViewModelBase
 
     public string PlanLabel => CurrentPlan switch
     {
-        Plan.BYOK => "BYOK",
-        Plan.Pro => "Pro",
+        Plan.Lifetime => "Lifetime access",
         _ => CurrentPlan.ToString(),
     };
 
@@ -31,11 +30,9 @@ public sealed class PlanSectionViewModel : ViewModelBase
 
     public string PlanDescription => CurrentPlan switch
     {
-        Plan.BYOK => "Estás usando tu propia API key. Cuando lancemos el plan Pro vas a poder pasarte sin reconfigurar nada.",
-        Plan.Pro => "Estás en el plan Pro. Tus dictados se procesan con la API key gestionada de Spikit.",
+        Plan.Lifetime => "Tenés acceso de por vida a Spikit con tu propia API key. Cuando lancemos el plan Pro vas a poder pasarte sin reconfigurar nada.",
         _ => string.Empty,
     };
 
-    // V1 siempre devuelve false — el flujo de upgrade vive dormante hasta EP-7.
     public bool CanUpgradeToPro => false;
 }

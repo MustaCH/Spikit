@@ -151,7 +151,7 @@ public class DictationOrchestratorTests
         await WaitForState(orchestrator, DictationState.Idle);
 
         _insertion.Verify(i => i.InsertIntoForegroundAsync("hola mundo", It.IsAny<IntPtr>()), Times.Once);
-        _presenter.Verify(p => p.Show(It.IsAny<string>(), It.IsAny<InsertionResult>()), Times.Never);
+        _presenter.Verify(p => p.Show(It.IsAny<ResultErrorReason>(), It.IsAny<string>(), It.IsAny<IntPtr>()), Times.Never);
     }
 
     [Theory]
@@ -172,7 +172,7 @@ public class DictationOrchestratorTests
         RaiseHotkeyReleased();
         await WaitForState(orchestrator, DictationState.Idle);
 
-        _presenter.Verify(p => p.Show("texto a pegar", failureCode), Times.Once);
+        _presenter.Verify(p => p.Show(ResultErrorReason.PasteFailed, "texto a pegar", It.IsAny<IntPtr>()), Times.Once);
     }
 
     [Fact]
@@ -558,9 +558,10 @@ public class DictationOrchestratorTests
     }
 
     [Fact]
-    public async Task CB8_empty_whisper_response_shows_info_toast()
+    public async Task CB8_empty_whisper_response_shows_floating_result_v6()
     {
-        // CB-8: Whisper devuelve texto vacío. Toast info gris sin acción.
+        // CB-8: Whisper devuelve texto vacío. EP-6.5 migró de toast a FloatingResult V6
+        // (ResultErrorReason.EmptyResult) — alineado con resto de errores del provider.
         _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
         _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
@@ -572,13 +573,10 @@ public class DictationOrchestratorTests
         RaiseHotkeyReleased();
         await WaitForState(orchestrator, DictationState.Idle);
 
-        _toast.Verify(t => t.Show(
-            ToastSeverity.Info,
-            It.Is<string>(s => s.Contains("texto vacío")),
-            It.IsAny<string?>(),
-            It.IsAny<ToastAction?>(),
-            It.IsAny<TimeSpan?>(),
-            It.IsAny<string?>()), Times.Once);
+        _presenter.Verify(p => p.Show(
+            ResultErrorReason.EmptyResult,
+            It.IsAny<string>(),
+            It.IsAny<IntPtr>()), Times.Once);
     }
 
     [Fact]

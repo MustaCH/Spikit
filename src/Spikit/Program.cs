@@ -82,9 +82,10 @@ public static class Program
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.HistorySectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.PlanSectionViewModel>();
                     services.AddTransient<Spikit.ViewModels.Settings.Sections.AboutSectionViewModel>();
-                    // PlanService V1 (EP-4.9): siempre BYOK hardcoded. Cuando exista backend Pro
+                    // PlanService V1: siempre Lifetime hardcoded (BYOK por invitación, todos los
+                    // users de V1 son de facto Lifetime). Cuando exista backend con Free / Pro (V2)
                     // se reemplaza por una HttpPlanService sin tocar la VM.
-                    services.AddSingleton<Spikit.Services.PlanInfo.IPlanService, Spikit.Services.PlanInfo.V1PlanService>();
+                    services.AddSingleton<Spikit.Services.PlanInfo.IPlanService, Spikit.Services.PlanInfo.LifetimeOnlyPlanService>();
                     services.AddSingleton<ISettingsWindowPresenter, WpfSettingsWindowPresenter>();
                     // Modal de confirmación reusable (EP-4.7 — borrar API key; EP-4.8 — borrar
                     // historial). Singleton stateless: cada Confirm() instancia su propia ConfirmDialog.

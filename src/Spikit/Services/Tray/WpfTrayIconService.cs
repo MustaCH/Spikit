@@ -128,7 +128,7 @@ internal sealed class WpfTrayIconService : ITrayIconService
     {
         var menu = new ContextMenu();
 
-        // Header info: "○ Spikit · {preset} · BYOK". Disabled — solo decorativo.
+        // Header info: "○ Spikit · {preset} · Lifetime access". Disabled — solo decorativo.
         // El bullet inicial cambia según pause state (◯ pausado, • activo) — RefreshMenuState
         // lo actualiza.
         _headerItem = new MenuItem
@@ -176,14 +176,14 @@ internal sealed class WpfTrayIconService : ITrayIconService
     {
         if (_hotkey.IsPaused) return "Spikit pausado";
         var preset = ProviderPresetDefaults.DisplayName(ParsePresetId(_settings.Load().Provider.PresetId));
-        return $"Spikit · {preset} · BYOK";
+        return $"Spikit · {preset} · Lifetime access";
     }
 
     private string BuildHeaderText()
     {
         var bullet = _hotkey.IsPaused ? "◯" : "●";
         var preset = ProviderPresetDefaults.DisplayName(ParsePresetId(_settings.Load().Provider.PresetId));
-        return $"{bullet}  Spikit · {preset} · BYOK";
+        return $"{bullet}  Spikit · {preset} · Lifetime access";
     }
 
     private string BuildStartText()
