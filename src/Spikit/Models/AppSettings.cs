@@ -4,7 +4,7 @@ namespace Spikit.Models;
 
 // Raíz del archivo %AppData%\Spikit\settings.json. Las secciones "provider" y "hotkey"
 // cierran EP-3.4 y EP-3.6 respectivamente; el flag "onboardingCompleted" de EP-3.8
-// gatea el bootstrap (App.xaml.cs decide entre OnboardingWindow y MainWindow al startup).
+// gatea el bootstrap (App.xaml.cs decide entre OnboardingWindow y MainApp al startup).
 // Las propiedades NO se mutan in-place desde fuera del settings service — el flujo
 // canónico es Load → mutar → Save.
 public sealed class AppSettings
@@ -67,14 +67,20 @@ public sealed class GeneralSettings
     };
 }
 
-// Sección "privacy" (EP-4.7 / US-5.5). Toggle del historial local — default OFF coherente
-// con RN-2 ("ningún dato persiste salvo opt-in explícito"). Cuando el toggle es false, la
-// orquestación termina cada sesión sin escribir history.json (ya está implementado, EP-4.7
-// solo expone el switch al usuario). El cableado runtime que reacciona al cambio en vivo
-// vive en EP-4.10 — esta sección solo persiste el flag.
+// Sección "privacy" (EP-4.7 / US-5.5 + EP-8.3 crash reports). Defaults OFF coherentes
+// con RN-2 ("ningún dato persiste salvo opt-in explícito"). Cuando un toggle es false,
+// la lógica respectiva no actúa (no se escribe history.json, no se inicializa Sentry).
+//
+// HistoryEnabled — toggle del historial local. EP-4.7 expone el switch en Settings.
+// SendCrashReports — toggle de Sentry (EP-8.3). El bootstrap de Program.cs lee este
+//   flag para decidir si inicializa el SDK. **Sin UI todavía** — el toggle visible en
+//   Settings + Onboarding queda como TODO de Frontend (ver hand-off del ticket EP-8.3
+//   y "Pendientes" de docs/infra.md). Persistir vía DPAPI no aplica: es un bool, no
+//   un secreto.
 public sealed class PrivacySettings
 {
     public bool HistoryEnabled { get; set; } = false;
+    public bool SendCrashReports { get; set; } = false;
 }
 
 // Sección "audio" (EP-4.6 / US-5.3). DeviceId vacío representa "default del sistema" —

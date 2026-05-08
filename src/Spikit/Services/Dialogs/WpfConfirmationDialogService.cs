@@ -5,13 +5,12 @@ using Spikit.Views.Common;
 namespace Spikit.Services.Dialogs;
 
 // Implementación WPF del IConfirmationDialogService: instancia ConfirmDialog, lo asocia
-// a la owner correcta (SettingsWindow si está abierta, sino MainWindow), y devuelve el
-// resultado del ShowDialog().
+// a la owner correcta (la SettingsWindow activa) y devuelve el resultado del ShowDialog().
 //
-// La elección de owner: privilegiar la window topmost que NO sea la dialog en sí. En la
-// práctica, cuando el usuario aprieta "Borrar API key" desde Settings, la owner es la
-// SettingsWindow (que tiene IsActive=true en ese momento). Si por alguna razón no hay
-// activa, caemos a MainWindow.
+// La elección de owner: privilegiar la window activa (típicamente SettingsWindow cuando
+// se invoca el modal). Si no hay ninguna activa, dejamos owner=null — el ConfirmDialog
+// cae a CenterScreen sin owner. La app no tiene ventana persistente visible (solo tray
+// icon + pill flotante, esta última no debería ser owner de un modal).
 //
 // Singleton en DI: el servicio es stateless. Cada Confirm() crea su propia instancia de
 // ConfirmDialog (transient por construcción).
@@ -38,13 +37,13 @@ public sealed class WpfConfirmationDialogService : IConfirmationDialogService
     {
         if (Application.Current is null) return null;
 
-        // Buscamos la window activa primero (la que el usuario tiene en foco — típicamente
-        // SettingsWindow cuando se invoca el modal). Si ninguna está activa caemos a la
-        // MainWindow del Application.
+        // Buscamos la window activa (la que el usuario tiene en foco — típicamente
+        // SettingsWindow cuando se invoca el modal). Si ninguna está activa devolvemos
+        // null y ConfirmDialog cae a CenterScreen sin owner.
         foreach (Window w in Application.Current.Windows)
         {
             if (w.IsActive) return w;
         }
-        return Application.Current.MainWindow;
+        return null;
     }
 }

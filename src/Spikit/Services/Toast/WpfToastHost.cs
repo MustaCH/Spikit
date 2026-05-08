@@ -166,9 +166,11 @@ internal sealed class WpfToastHost : IToastHost, IDisposable
         var info = new MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
         if (!User32.GetMonitorInfo(hMonitor, ref info)) return false;
 
-        // Si MainWindow ya existe la usamos para resolver DPI; si no (la app recién arranca),
-        // asumimos 1.0 y dejamos que un reposition posterior lo corrija. Crear una Window
-        // efímera solo para medir DPI tiene side-effects feos (parpadeo en taskbar).
+        // Cualquier Window con PresentationSource sirve como anchor para resolver DPI.
+        // Application.MainWindow apunta por default a la primera Window mostrada (la pill
+        // en MainApp mode). Si todavía no hay ninguna, asumimos 1.0 y dejamos que un
+        // reposition posterior lo corrija — crear una Window efímera solo para medir DPI
+        // tiene side-effects feos (parpadeo en taskbar).
         var anchor = Application.Current?.MainWindow;
         var (scaleX, scaleY) = anchor is not null
             ? (VisualTreeHelper.GetDpi(anchor).DpiScaleX, VisualTreeHelper.GetDpi(anchor).DpiScaleY)

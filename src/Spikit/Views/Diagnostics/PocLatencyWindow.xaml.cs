@@ -14,8 +14,8 @@ namespace Spikit.Views.Diagnostics;
 
 // POC EP-1 (sub-task 86ah83zw4): mide latencia desde press del hotkey hasta primer
 // sample no-cero de WasapiCapture en modo shared. Autocontenida (no usa
-// HotkeyService/AudioCaptureService). Cuando EP-1 cierre, esta window se elimina
-// y App.xaml.cs vuelve a abrir MainWindow.
+// HotkeyService/AudioCaptureService). Solo se levanta con --diagnostics-poc; el
+// flow normal de la app no la toca.
 public partial class PocLatencyWindow : Window
 {
     private const int HotkeyId = 0x9001;

@@ -19,6 +19,9 @@
                 <!-- Componentes globales (style implícito → afectan a todos los controles del tipo). -->
                 <ResourceDictionary Source="Resources/Themes/Components/ScrollBar.xaml" />
 
+                <!-- ContextMenu/MenuItem/Separator estilizados — usados hoy por el TrayIcon. -->
+                <ResourceDictionary Source="Resources/Themes/Components/ContextMenu.xaml" />
+
                 <!-- Estilos compartidos por formularios (TextBox, PasswordBox, ComboBox, etc.). -->
                 <ResourceDictionary Source="Resources/Themes/Components/Form.xaml" />
 

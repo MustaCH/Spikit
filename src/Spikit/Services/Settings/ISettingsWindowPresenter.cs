@@ -3,7 +3,8 @@ using Spikit.ViewModels.Settings;
 namespace Spikit.Services.Settings;
 
 // Punto de entrada único para abrir el SettingsWindow desde cualquier lado de la app
-// (TrayIcon en EP-4.2, MainWindow debug, FloatingResultWindow CTAs, etc.).
+// (TrayIcon en EP-4.2, FloatingResultWindow CTAs, IPC OPEN_SETTINGS de la segunda
+// instancia, etc.).
 //
 // Garantiza que solo haya una window abierta a la vez: si ya está visible, la trae al
 // frente (cumple el AC del ticket EP-4.1: "Si la window ya está abierta, traerla al

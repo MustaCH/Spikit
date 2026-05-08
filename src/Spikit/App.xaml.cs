@@ -109,10 +109,13 @@ public partial class App : Application
     }
 
     // Equivalente al flujo "no --diagnostics-poc, no --onboarding" anterior: pill flotante
-    // pre-cargada, hotkey hidratado desde settings.json, orchestrator arrancado, MainWindow
+    // pre-cargada, hotkey hidratado desde settings.json, orchestrator arrancado, tray icon
     // visible. Idempotente vía _mainAppActive — el OnboardingWindow del modo Onboarding ya
     // pudo haber dejado la pill + orchestrator en estado "started" durante el step Prueba;
     // en ese caso el cleanup del OnClosing los Stop()-eó y acá los volvemos a arrancar.
+    //
+    // El usuario en MainApp mode no tiene ninguna ventana visible — solo el ícono del tray.
+    // Settings, FloatingResultWindow y la pill cubren todo lo que necesita ver.
     private void EnterMainAppMode()
     {
         if (_mainAppActive) return;
@@ -128,9 +131,6 @@ public partial class App : Application
         // Tray icon es el entry point permanente (EP-4.2). Se inicializa solo en MainApp
         // mode — durante onboarding o --diagnostics-poc no tiene sentido tener tray.
         _host.Services.GetRequiredService<ITrayIconService>().Initialize();
-
-        var main = _host.Services.GetRequiredService<MainWindow>();
-        main.Show();
     }
 
     private void BootstrapTheme()

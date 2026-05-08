@@ -8,7 +8,7 @@ namespace Spikit.Views.Common;
 //
 //   var dialog = new ConfirmDialog
 //   {
-//       Owner = Application.Current.MainWindow,
+//       Owner = settingsWindow, // o null si no hay ventana visible activa
 //       Title = "Borrar API key del sistema",
 //       MessageText = "Vas a tener que reconfigurar tu provider. ¿Continuar?",
 //       ConfirmLabel = "Borrar",

@@ -10,6 +10,7 @@ using Spikit.Services.Audio;
 using Spikit.Services.Autostart;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
+using Spikit.Services.Observability;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
 using Spikit.Services.PillPosition;
@@ -28,6 +29,7 @@ using Spikit.Views;
 using Spikit.Views.Diagnostics;
 using Spikit.Views.Onboarding;
 using Spikit.Views.Settings;
+using Velopack;
 
 namespace Spikit;
 
@@ -36,6 +38,21 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Sentry primero (EP-8.3 / Q-3): se inicializa solo si hay DSN compilado y el
+        // usuario tiene Privacy.SendCrashReports = true. Cuando es no-op (default V1),
+        // el costo es leer settings.json una vez. Ver Services/Observability/SentryBootstrap.
+        // Mantenido vivo durante toda la sesión vía using en Main → flush al exit.
+        using var sentry = SentryBootstrap.TryInit();
+
+        // Velopack hooks (EP-8.3 / Q-2): si el binario fue lanzado con args internos de
+        // Velopack (--veloapp-install, --veloapp-uninstall, --veloapp-firstrun, etc.) los
+        // procesa y termina el proceso ahí. En lanzamientos normales sigue al flow regular.
+        // Debe llamarse antes de cualquier otra inicialización para que los hooks tengan
+        // efecto antes de que la app intente abrir ventanas o tocar el filesystem.
+        // Velopack inspecciona Environment.GetCommandLineArgs() internamente — no se le
+        // pasan los `args` del Main como parámetro.
+        VelopackApp.Build().Run();
+
         ConfigureSerilog();
 
         // Single-instance gate (RN-9 / CB-11): se evalúa antes de levantar el host de DI
@@ -72,8 +89,6 @@ public static class Program
                     // dispara su Dispose en OnExit (ver App.OnExit).
                     services.AddSingleton<ISingleInstanceGuard>(instanceGuard);
                     services.AddSingleton<App>();
-                    services.AddSingleton<MainWindow>();
-                    services.AddSingleton<MainWindowViewModel>();
                     services.AddSingleton<DictationPillWindow>();
                     services.AddSingleton<DictationPillViewModel>();
 

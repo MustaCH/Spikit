@@ -14,7 +14,8 @@ public static class StartupRouter
         // o cuando se forzó manualmente con `--onboarding` (override de QA / dev).
         Onboarding,
 
-        // Flujo principal: MainWindow + pill flotante + DictationOrchestrator activo.
+        // Flujo principal: tray icon + pill flotante + DictationOrchestrator activo,
+        // sin ventana persistente visible (Settings se abre on-demand desde el tray).
         MainApp,
     }
 

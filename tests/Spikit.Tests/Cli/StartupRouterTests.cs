@@ -48,7 +48,8 @@ public class StartupRouterTests
     [Fact]
     public void No_flags_and_completed_routes_to_MainApp()
     {
-        // Caso happy path post-onboarding: pill + orchestrator + MainWindow directo.
+        // Caso happy path post-onboarding: tray icon + pill + orchestrator activos, sin
+        // ventana persistente visible.
         var cli = ParseArgs();
 
         Assert.Equal(StartupRouter.StartupMode.MainApp, StartupRouter.Decide(cli, onboardingCompleted: true));

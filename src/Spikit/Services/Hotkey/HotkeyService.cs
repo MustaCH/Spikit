@@ -182,8 +182,8 @@ public sealed class HotkeyService : IHotkeyService
         if (_sink is not null) return;
 
         // Message-only window: no recibe input ni pinta nada, solo procesa mensajes.
-        // Vive desacoplada de MainWindow para que el hotkey siga funcionando aunque
-        // la UI principal se cierre/oculte (pill flotante es la cara visible de la app).
+        // Vive desacoplada de cualquier window visible para que el hotkey siga funcionando
+        // independientemente de que la pill o el SettingsWindow estén abiertos o no.
         var parameters = new HwndSourceParameters("SpikitHotkeySink")
         {
             Width = 0,
