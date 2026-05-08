@@ -52,6 +52,50 @@ internal static class User32
 
     [DllImport(Dll, EntryPoint = "SetWindowLongW")]
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    // Monitor APIs — usadas por el handler de WM_GETMINMAXINFO de las custom-chrome
+    // windows para respetar el WorkArea al maximizar (sino Windows extiende la window
+    // ~7-8 px más allá del viewport, cortando el contenido).
+    [DllImport(Dll)]
+    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport(Dll)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+    public const int WM_GETMINMAXINFO = 0x0024;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RECT
+{
+    public int Left, Top, Right, Bottom;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct POINT
+{
+    public int X, Y;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MONITORINFO
+{
+    public int cbSize;
+    public RECT rcMonitor;
+    public RECT rcWork;
+    public uint dwFlags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MINMAXINFO
+{
+    public POINT ptReserved;
+    public POINT ptMaxSize;
+    public POINT ptMaxPosition;
+    public POINT ptMinTrackSize;
+    public POINT ptMaxTrackSize;
 }
 
 internal static class WindowExStyles

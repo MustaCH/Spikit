@@ -4,8 +4,10 @@ using Microsoft.Extensions.Logging;
 using Spikit.Models;
 using Spikit.Native;
 using Spikit.Services.Audio;
+using Spikit.Services.History;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
+using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
 
 namespace Spikit.Services.Orchestration;
@@ -25,6 +27,9 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
     private readonly ITranscriptionService _transcription;
     private readonly ITextInsertionService _insertion;
     private readonly IFloatingResultPresenter _floatingPresenter;
+    private readonly IHistoryStore _historyStore;
+    private readonly ISettingsService _settingsService;
+    private readonly ITargetProcessResolver _processResolver;
     private readonly ILogger<DictationOrchestrator> _logger;
     private readonly Dispatcher _dispatcher;
 
@@ -55,6 +60,9 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         ITranscriptionService transcription,
         ITextInsertionService insertion,
         IFloatingResultPresenter floatingPresenter,
+        IHistoryStore historyStore,
+        ISettingsService settingsService,
+        ITargetProcessResolver processResolver,
         ILogger<DictationOrchestrator> logger)
     {
         _hotkey = hotkey;
@@ -62,6 +70,9 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         _transcription = transcription;
         _insertion = insertion;
         _floatingPresenter = floatingPresenter;
+        _historyStore = historyStore;
+        _settingsService = settingsService;
+        _processResolver = processResolver;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
@@ -370,6 +381,12 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
 
         TranscriptionCompleted?.Invoke(this, transcribedText);
 
+        // EP-4.10: persistir en el historial local si el toggle de Privacidad está ON.
+        // Lo hacemos ACÁ (post-Whisper OK, pre-paste) para que la entry se guarde aunque
+        // el paste falle — el usuario sigue teniendo el texto en FloatingResult, mantenerlo
+        // en el historial es coherente con su mental model ("dicté esto, debe estar guardado").
+        TryAppendToHistory(transcribedText, snapshot.Length);
+
         TransitionTo(DictationState.Inserting);
         EmitPillMessage("Pegando…");
 
@@ -494,5 +511,32 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
     private void EnsureNotDisposed()
     {
         if (_disposed) throw new ObjectDisposedException(nameof(DictationOrchestrator));
+    }
+
+    // Lee privacy.historyEnabled del settings y, si está ON, agrega una entry al
+    // historial local. Cualquier excepción de I/O acá se traga con log: el historial
+    // es secundario y no debe abortar el flujo principal del dictado.
+    private void TryAppendToHistory(string transcribedText, int sampleCount)
+    {
+        try
+        {
+            var settings = _settingsService.Load();
+            if (!settings.Privacy.HistoryEnabled) return;
+
+            var entry = new HistoryEntry
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                DurationMs = sampleCount * 1000L / SampleRateHz,
+                Text = transcribedText,
+                TargetProcessName = _processResolver.Resolve(_targetHwnd),
+            };
+            _historyStore.Append(entry);
+            _logger.LogDebug("Historial: entry agregada ({DurationMs} ms, target={Target})",
+                entry.DurationMs, string.IsNullOrEmpty(entry.TargetProcessName) ? "(?)" : entry.TargetProcessName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Historial: no se pudo agregar la entry — sigue el flujo del dictado");
+        }
     }
 }

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Microsoft.Extensions.Logging;
 using Spikit.Services.Audio;
 using Spikit.Services.Settings;
+using Spikit.Services.Transcription;
 
 namespace Spikit.ViewModels.Settings.Sections;
 
@@ -24,6 +25,8 @@ public sealed class AudioSectionViewModel : ViewModelBase
     private readonly ILogger<AudioSectionViewModel> _logger;
     private readonly ISettingsService _settingsService;
     private readonly IAudioDeviceEnumerator _deviceEnumerator;
+    private readonly AudioRuntimeOptions _audioRuntime;
+    private readonly WhisperApiOptions _whisperRuntime;
 
     private AudioInputDevice? _selectedDevice;
     private TranscriptionLanguageOption _language;
@@ -33,11 +36,15 @@ public sealed class AudioSectionViewModel : ViewModelBase
     public AudioSectionViewModel(
         ILogger<AudioSectionViewModel> logger,
         ISettingsService settingsService,
-        IAudioDeviceEnumerator deviceEnumerator)
+        IAudioDeviceEnumerator deviceEnumerator,
+        AudioRuntimeOptions audioRuntime,
+        WhisperApiOptions whisperRuntime)
     {
         _logger = logger;
         _settingsService = settingsService;
         _deviceEnumerator = deviceEnumerator;
+        _audioRuntime = audioRuntime;
+        _whisperRuntime = whisperRuntime;
 
         Devices = new ObservableCollection<AudioInputDevice>();
         LoadFromPersistence();
@@ -144,13 +151,25 @@ public sealed class AudioSectionViewModel : ViewModelBase
         var settings = _settingsService.Load();
         settings.Audio.DeviceId = deviceId;
         _settingsService.Save(settings);
+
+        // EP-4.10: cableado runtime — la próxima sesión de dictado va a ver este deviceId
+        // sin reiniciar la app. AudioCaptureService consulta AudioRuntimeOptions.DeviceId
+        // en cada StartAsync (no se cachea).
+        _audioRuntime.DeviceId = deviceId;
     }
 
     private void PersistLanguage(TranscriptionLanguageOption option)
     {
         var settings = _settingsService.Load();
-        settings.Transcription.Language = ToLanguageId(option);
+        var languageId = ToLanguageId(option);
+        settings.Transcription.Language = languageId;
         _settingsService.Save(settings);
+
+        // EP-4.10: mutamos el WhisperApiOptions singleton para que la próxima request a
+        // /audio/transcriptions use el language nuevo. WhisperApiTranscriptionService omite
+        // el parámetro language cuando es null/vacío — convertimos "auto" a null acá para
+        // mantener esa semántica (whisper auto-detecta cuando el campo no se manda).
+        _whisperRuntime.Language = languageId == "auto" ? null : languageId;
     }
 
     // ============ Helpers ============

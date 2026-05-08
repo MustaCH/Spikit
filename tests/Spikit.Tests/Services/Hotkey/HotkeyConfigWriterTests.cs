@@ -38,6 +38,9 @@ public class HotkeyConfigWriterTests
             new Mock<ITranscriptionService>().Object,
             new Mock<ITextInsertionService>().Object,
             new Mock<IFloatingResultPresenter>().Object,
+            new Mock<Spikit.Services.History.IHistoryStore>().Object,
+            settings,
+            new Mock<ITargetProcessResolver>().Object,
             NullLogger<DictationOrchestrator>.Instance);
         var writer = new HotkeyConfigWriter(hotkey, settings, orchestrator, NullLogger<HotkeyConfigWriter>.Instance);
         return (writer, hotkey, settings, orchestrator);

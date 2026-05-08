@@ -2,9 +2,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Spikit.Models;
 using Spikit.Services.Audio;
+using Spikit.Services.History;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Orchestration;
+using Spikit.Services.Settings;
 using Spikit.Services.Transcription;
 
 namespace Spikit.Tests.Services.Orchestration;
@@ -16,12 +18,16 @@ public class DictationOrchestratorTests
     private readonly Mock<ITranscriptionService> _transcription = new();
     private readonly Mock<ITextInsertionService> _insertion = new();
     private readonly Mock<IFloatingResultPresenter> _presenter = new();
+    private readonly Mock<IHistoryStore> _historyStore = new();
+    private readonly FakeSettingsService _settings = new();
+    private readonly FakeProcessResolver _processResolver = new();
 
     private DictationOrchestrator BuildAndStart()
     {
         var orchestrator = new DictationOrchestrator(
             _hotkey.Object, _audio.Object, _transcription.Object, _insertion.Object,
-            _presenter.Object, NullLogger<DictationOrchestrator>.Instance);
+            _presenter.Object, _historyStore.Object, _settings, _processResolver,
+            NullLogger<DictationOrchestrator>.Instance);
         orchestrator.Start();
         return orchestrator;
     }
@@ -357,6 +363,123 @@ public class DictationOrchestratorTests
         _audio.Verify(a => a.StopAsync(), Times.Never);
     }
 
+    // ===== EP-4.10 — cableado del HistoryStore =====
+
+    [Fact]
+    public async Task Successful_session_appends_to_history_when_toggle_on()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("hola desde test");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Pasted);
+
+        _settings.Saved.Privacy = new PrivacySettings { HistoryEnabled = true };
+        _processResolver.ResolvedName = "cursor.exe";
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _historyStore.Verify(h => h.Append(It.Is<HistoryEntry>(e =>
+            e.Text == "hola desde test"
+            && e.TargetProcessName == "cursor.exe"
+            && e.DurationMs >= 1400 && e.DurationMs <= 1600)), Times.Once);
+    }
+
+    [Fact]
+    public async Task Successful_session_does_not_append_when_toggle_off()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("hola");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Pasted);
+
+        _settings.Saved.Privacy = new PrivacySettings { HistoryEnabled = false };
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _historyStore.Verify(h => h.Append(It.IsAny<HistoryEntry>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task History_append_happens_even_when_paste_fails()
+    {
+        // Acceptance criteria EP-4.10: el Append corre post-Whisper-OK, INDEPENDIENTE
+        // de si el paste posterior pegó o no. El usuario sigue teniendo el texto en
+        // FloatingResult; el historial debe reflejarlo.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("texto que no se pegó");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Failed);
+
+        _settings.Saved.Privacy = new PrivacySettings { HistoryEnabled = true };
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _historyStore.Verify(h => h.Append(It.IsAny<HistoryEntry>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Empty_whisper_response_does_not_append_to_history()
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("   ");
+
+        _settings.Saved.Privacy = new PrivacySettings { HistoryEnabled = true };
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _historyStore.Verify(h => h.Append(It.IsAny<HistoryEntry>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task History_append_failure_does_not_break_dictation_flow()
+    {
+        // El historial es secundario: si Append tira (disco lleno, archivo locked), el
+        // flujo principal del dictado debe completarse igual y la state machine volver a Idle.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+        _transcription.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("hola");
+        _insertion.Setup(i => i.InsertIntoForegroundAsync(It.IsAny<string>(), It.IsAny<IntPtr>()))
+            .ReturnsAsync(InsertionResult.Pasted);
+
+        _settings.Saved.Privacy = new PrivacySettings { HistoryEnabled = true };
+        _historyStore.Setup(h => h.Append(It.IsAny<HistoryEntry>()))
+            .Throws(new IOException("disco lleno"));
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+        RaiseSamples(SamplesOfDuration(milliseconds: 1500));
+        RaiseHotkeyReleased();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _insertion.Verify(i => i.InsertIntoForegroundAsync("hola", It.IsAny<IntPtr>()), Times.Once);
+        Assert.Equal(DictationState.Idle, orchestrator.State);
+    }
+
     private static async Task WaitForState(DictationOrchestrator orchestrator, DictationState target, int timeoutMs = 500)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
@@ -365,5 +488,21 @@ public class DictationOrchestratorTests
             await Task.Delay(10);
         }
         Assert.Equal(target, orchestrator.State);
+    }
+
+    // ===== Fakes para historial / process resolver =====
+
+    private sealed class FakeSettingsService : ISettingsService
+    {
+        public AppSettings Saved { get; set; } = new();
+        public event EventHandler? SettingsChanged;
+        public AppSettings Load() => Saved;
+        public void Save(AppSettings settings) { Saved = settings; SettingsChanged?.Invoke(this, EventArgs.Empty); }
+    }
+
+    private sealed class FakeProcessResolver : ITargetProcessResolver
+    {
+        public string ResolvedName { get; set; } = "test.exe";
+        public string Resolve(IntPtr hwnd) => ResolvedName;
     }
 }

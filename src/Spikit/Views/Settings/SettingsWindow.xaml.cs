@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -48,28 +49,56 @@ public partial class SettingsWindow : Window
 
         int mica = (int)DwmSystemBackdropType.MainWindow;
         Dwmapi.DwmSetWindowAttribute(hwnd, DwmWindowAttribute.SystemBackdropType, ref mica, sizeof(int));
+
+        // Hook al WndProc: Windows custom-chrome con WindowStyle=None tiene un bug clásico
+        // al maximizar — extiende la window ~7-8px más allá de la pantalla, cortando el
+        // contenido contra los bordes y la taskbar. Interceptamos WM_GETMINMAXINFO para
+        // decirle a Windows: "tu MaxSize/MaxPosition es el WorkArea del monitor de esta
+        // window". Así maximize llena el viewport visible exacto.
+        var source = HwndSource.FromHwnd(hwnd);
+        source?.AddHook(WndProcHook);
+    }
+
+    private static IntPtr WndProcHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == User32.WM_GETMINMAXINFO)
+        {
+            ApplyWorkAreaToMaxInfo(hwnd, lParam);
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    private static void ApplyWorkAreaToMaxInfo(IntPtr hwnd, IntPtr lParam)
+    {
+        var monitor = User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return;
+
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!User32.GetMonitorInfo(monitor, ref info)) return;
+
+        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        // Origen del Maximize relativo al monitor (no al desktop): rcWork - rcMonitor.
+        mmi.ptMaxPosition.X = Math.Abs(info.rcWork.Left - info.rcMonitor.Left);
+        mmi.ptMaxPosition.Y = Math.Abs(info.rcWork.Top - info.rcMonitor.Top);
+        // Tamaño del Maximize = ancho/alto del WorkArea (ya descuenta la taskbar).
+        mmi.ptMaxSize.X = Math.Abs(info.rcWork.Right - info.rcWork.Left);
+        mmi.ptMaxSize.Y = Math.Abs(info.rcWork.Bottom - info.rcWork.Top);
+        // El track-size también debe respetar el WorkArea para que el dragging-to-edge
+        // (snap arriba) no sobrepase la pantalla.
+        mmi.ptMaxTrackSize.X = mmi.ptMaxSize.X;
+        mmi.ptMaxTrackSize.Y = mmi.ptMaxSize.Y;
+        Marshal.StructureToPtr(mmi, lParam, fDeleteOld: true);
     }
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
     {
-        // Toggle del glyph entre maximizar y restaurar. También compensamos el offset de
-        // ~7px que mete WindowChrome al maximizar (la window se hace más grande que la
-        // pantalla y el contenido queda recortado contra los bordes); el Padding del Border
-        // outermost lo absorbe.
+        // Toggle del glyph entre maximizar (cuadrado) y restaurar (dos cuadrados). El
+        // recorte del contenido al maximizar lo soluciona WndProcHook → WM_GETMINMAXINFO,
+        // no necesitamos compensar con padding al root.
         if (FindName("MaxGlyph") is System.Windows.Shapes.Path glyph)
         {
             glyph.Data = WindowState == WindowState.Maximized ? RestoreGlyphData : MaxGlyphData;
-        }
-
-        // Compensar el offset clásico de WindowChrome cuando se maximiza una window con
-        // WindowStyle=None: WPF agranda la window unos 7px en cada lado, lo que cortaría
-        // el contenido. Aplicamos el padding al root Border del Content (Window.Content
-        // es un Border en este XAML).
-        if (Content is Border root)
-        {
-            root.Padding = WindowState == WindowState.Maximized
-                ? new Thickness(7)
-                : new Thickness(0);
         }
     }
 

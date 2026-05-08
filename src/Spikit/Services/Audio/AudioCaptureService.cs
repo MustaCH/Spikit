@@ -21,6 +21,7 @@ public sealed class AudioCaptureService : IAudioCaptureService
     private const double WarmColdP99Ms = 1500.0;
 
     private readonly ILogger<AudioCaptureService> _logger;
+    private readonly AudioRuntimeOptions _runtimeOptions;
 
     private MMDeviceEnumerator? _enumerator;
     private MMDevice? _device;
@@ -41,9 +42,10 @@ public sealed class AudioCaptureService : IAudioCaptureService
     public event EventHandler<float>? RmsLevelChanged;
     public event EventHandler<short[]>? SamplesAvailable;
 
-    public AudioCaptureService(ILogger<AudioCaptureService> logger)
+    public AudioCaptureService(ILogger<AudioCaptureService> logger, AudioRuntimeOptions runtimeOptions)
     {
         _logger = logger;
+        _runtimeOptions = runtimeOptions;
     }
 
     public Task StartAsync(CancellationToken ct)
@@ -62,10 +64,15 @@ public sealed class AudioCaptureService : IAudioCaptureService
         _rmsBufferIndex = 0;
         _startTicks = Stopwatch.GetTimestamp();
 
+        // Lectura fresca del deviceId en cada StartAsync — no se cachea (EP-4.10 AC).
+        // Esto permite hot-swap entre sesiones: el usuario cambia el device en Settings,
+        // la próxima vez que dicta usa el nuevo sin reiniciar.
+        var requestedDeviceId = _runtimeOptions.DeviceId ?? string.Empty;
+
         try
         {
             _enumerator = new MMDeviceEnumerator();
-            _device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
+            _device = ResolveDevice(_enumerator, requestedDeviceId);
             _capture = new WasapiCapture(_device, useEventSync: false, audioBufferMillisecondsLength: WasapiBufferMs)
             {
                 WaveFormat = new WaveFormat(SampleRateHz, BitsPerSample, Channels),
@@ -73,6 +80,12 @@ public sealed class AudioCaptureService : IAudioCaptureService
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += OnRecordingStopped;
             _capture.StartRecording();
+        }
+        catch (AudioDeviceUnavailableException)
+        {
+            DisposeCaptureChain();
+            TransitionTo(AudioCaptureState.Idle);
+            throw;
         }
         catch
         {
@@ -234,5 +247,36 @@ public sealed class AudioCaptureService : IAudioCaptureService
     private void EnsureNotDisposed()
     {
         if (_disposed) throw new ObjectDisposedException(nameof(AudioCaptureService));
+    }
+
+    // Resuelve el MMDevice a abrir según AudioRuntimeOptions:
+    //   - DeviceId vacío → default del sistema (Role.Console).
+    //   - DeviceId presente → buscar en la enumeración Active. Si NO está, throw
+    //     AudioDeviceUnavailableException — el orchestrator lo cablea a un toast EP-5.3.
+    //
+    // Por qué no usamos GetDevice(id) directo: lanza COMException o devuelve un device
+    // en un estado inválido si el id ya no existe. Enumerar Active y matchear es más
+    // explícito y evita un edge case raro (device con id válido pero state=Disabled
+    // que NAudio acepta y después falla al StartRecording).
+    private MMDevice ResolveDevice(MMDeviceEnumerator enumerator, string deviceId)
+    {
+        if (string.IsNullOrEmpty(deviceId))
+        {
+            return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
+        }
+
+        var endpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+        foreach (var candidate in endpoints)
+        {
+            if (string.Equals(candidate.ID, deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+            candidate.Dispose();
+        }
+
+        throw new AudioDeviceUnavailableException(
+            deviceId,
+            "El micrófono configurado ya no está disponible. Conectalo de nuevo o elegí otro en Settings → Audio.");
     }
 }

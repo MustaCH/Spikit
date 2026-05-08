@@ -102,6 +102,14 @@ public static class Program
                     // Sección Audio (EP-4.6). Singleton porque la enumeración no cambia en runtime
                     // a corto plazo y reusar la instancia evita crear MMDeviceEnumerator innecesarios.
                     services.AddSingleton<IAudioDeviceEnumerator, NAudioAudioDeviceEnumerator>();
+                    // EP-4.10 — AudioRuntimeOptions singleton mutable. Bootstrapeado desde
+                    // settings.Audio.DeviceId; AudioCaptureService lo lee fresh en cada StartAsync
+                    // (hot-swap entre sesiones), AudioSectionVM lo muta on toggle change.
+                    services.AddSingleton(sp =>
+                    {
+                        var settings = sp.GetRequiredService<ISettingsService>().Load();
+                        return new AudioRuntimeOptions { DeviceId = settings.Audio.DeviceId };
+                    });
 
                     // TrayIcon (EP-4.2) — singleton inicializado en App.EnterMainAppMode.
                     services.AddSingleton<ITrayIconService, WpfTrayIconService>();
@@ -154,7 +162,10 @@ public static class Program
                             Model = !string.IsNullOrWhiteSpace(settings.Provider.Model)
                                 ? settings.Provider.Model
                                 : fallback.Model,
-                            Language = fallback.Language,
+                            // EP-4.10: language preferido del usuario (Settings → Audio).
+                            // ResolveWhisperLanguage devuelve null para "auto" → WhisperApi
+                            // omite el parámetro language en la request (auto-detect del provider).
+                            Language = settings.Transcription.ResolveWhisperLanguage() ?? fallback.Language,
                             TimeoutSeconds = fallback.TimeoutSeconds,
                         };
                     });
@@ -166,6 +177,10 @@ public static class Program
                         var opts = sp.GetRequiredService<WhisperApiOptions>();
                         client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
                     });
+
+                    // EP-4.10: resolver del nombre del proceso target (HWND → "cursor.exe").
+                    // Lo usa el orchestrator al persistir entries al historial.
+                    services.AddSingleton<ITargetProcessResolver, Win32TargetProcessResolver>();
 
                     services.AddSingleton<ITextInsertionService, ClipboardPasteService>();
 
