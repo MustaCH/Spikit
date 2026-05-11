@@ -79,6 +79,13 @@ public partial class DictationPillWindow : Window
             | WindowExStyles.WS_EX_TOOLWINDOW;
         User32.SetWindowLong(hwnd, WindowExStyles.GWL_EXSTYLE, newStyle);
 
+        // Refuerzo explícito del z-order topmost. El Topmost=True del XAML lo intenta vía
+        // WPF, pero cuando la app arranca por autostart (HKCU\...\Run) antes de que el
+        // DWM/shell estén estables, el WS_EX_TOPMOST se setea pero el z-order interno
+        // queda degradado y la pill cae al desktop layer. Llamar SetWindowPos directo
+        // sincroniza el HWND con el z-order TOPMOST sin depender del bootstrap de WPF.
+        ForceTopmost(hwnd);
+
         // Sobre Acrylic en la pill (decisión EP-6.4 — design-system §10.1):
         // El ticket pedía Acrylic vía DwmHelper.ApplyBackdrop(this, DwmSystemBackdropType.Transient).
         // No es viable: la pill usa AllowsTransparency=True para el shadow externo + slide-in
@@ -149,6 +156,12 @@ public partial class DictationPillWindow : Window
         // hidden → cualquier estado visible: slide-in 520ms (FadeIn).
         if (prev == PillVisualMode.Hidden)
         {
+            // Si la app arrancó por autostart y el HWND quedó con z-order degradado
+            // (ver OnSourceInitialized), este momento es el primer hotkey post-boot — el
+            // DWM ya estabilizó. Re-aplicar HWND_TOPMOST rescata el z-order sin que el
+            // usuario note nada (ocurre antes del fade-in).
+            ForceTopmost(new WindowInteropHelper(this).Handle);
+
             ApplyBorderAndShadow(quiet: newMode == PillVisualMode.Initializing);
             LogoWaveControl.Mode = MapToLogoMode(newMode);
             ResetLogoWaveTransform();
@@ -199,6 +212,16 @@ public partial class DictationPillWindow : Window
         // swap directo de border + mode, sin animación. Más seguro que asumir un cross-fade.
         ApplyBorderAndShadow(quiet: newMode == PillVisualMode.Initializing);
         LogoWaveControl.Mode = MapToLogoMode(newMode);
+    }
+
+    private static void ForceTopmost(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        User32.SetWindowPos(
+            hwnd,
+            User32.HWND_TOPMOST,
+            0, 0, 0, 0,
+            User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
     }
 
     private static LogoWaveMode MapToLogoMode(PillVisualMode mode) => mode switch

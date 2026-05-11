@@ -53,6 +53,20 @@ internal static class User32
     [DllImport(Dll, EntryPoint = "SetWindowLongW")]
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
+    // Fuerza el z-order del HWND. Lo usamos en DictationPillWindow para reforzar
+    // HWND_TOPMOST: cuando la app arranca por autostart antes de que el shell/DWM
+    // termine de inicializar, el Topmost de WPF aplica WS_EX_TOPMOST al HWND pero el
+    // z-order interno del DWM queda degradado y la pill cae al desktop layer. Llamarlo
+    // explícito (en SourceInitialized + cada vez que la pill pasa a visible) la rescata.
+    [DllImport(Dll, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    public static readonly IntPtr HWND_TOPMOST = new(-1);
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOACTIVATE = 0x0010;
+
     // Monitor APIs — usadas por el handler de WM_GETMINMAXINFO de las custom-chrome
     // windows para respetar el WorkArea al maximizar (sino Windows extiende la window
     // ~7-8 px más allá del viewport, cortando el contenido).
