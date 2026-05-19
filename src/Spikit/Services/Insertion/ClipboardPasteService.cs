@@ -73,18 +73,20 @@ public sealed class ClipboardPasteService : ITextInsertionService
         return InsertionResult.Pasted;
     }
 
-    private async Task<IDataObject?> GetClipboardSnapshotAsync()
+    private async Task<ClipboardSnapshot> GetClipboardSnapshotAsync()
     {
         return await _dispatcher.InvokeAsync(() =>
         {
             try
             {
-                return Clipboard.GetDataObject();
+                return ClipboardSnapshot.FromDataObject(Clipboard.GetDataObject());
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "No se pudo capturar clipboard previo (RN-4: seguimos sin restore)");
-                return null;
+                _logger.LogWarning(ex,
+                    "No se pudo capturar clipboard previo — la transcripción quedará residual " +
+                    "(RN-4: preferimos eso a borrar contenido del usuario que no snapshoteamos)");
+                return ClipboardSnapshot.Unknown;
             }
         });
     }
@@ -106,18 +108,31 @@ public sealed class ClipboardPasteService : ITextInsertionService
         });
     }
 
-    private async Task TryRestoreClipboardAsync(IDataObject? saved)
+    private async Task TryRestoreClipboardAsync(ClipboardSnapshot saved)
     {
-        if (saved is null) return;
         await _dispatcher.InvokeAsync(() =>
         {
             try
             {
-                Clipboard.SetDataObject(saved);
+                switch (saved.State)
+                {
+                    case ClipboardSnapshot.Kind.HasContent:
+                        Clipboard.SetDataObject(saved.Data!);
+                        break;
+                    case ClipboardSnapshot.Kind.Empty:
+                        Clipboard.Clear();
+                        break;
+                    case ClipboardSnapshot.Kind.Unknown:
+                        // Snapshot falló — dejamos el clipboard como está (con la transcripción).
+                        // Borrarlo podría destruir datos del usuario que no pudimos capturar.
+                        break;
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Restore del clipboard original falló (RN-4: log + seguir)");
+                _logger.LogWarning(ex,
+                    "Restore/clear del clipboard post-paste falló (estado {State}, RN-4: log + seguir)",
+                    saved.State);
             }
         });
     }
