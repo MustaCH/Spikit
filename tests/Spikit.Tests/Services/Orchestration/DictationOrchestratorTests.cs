@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Spikit.Models;
 using Spikit.Services.Audio;
+using Spikit.Services.Auth;
 using Spikit.Services.History;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
@@ -9,6 +10,7 @@ using Spikit.Services.Orchestration;
 using Spikit.Services.Settings;
 using Spikit.Services.Toast;
 using Spikit.Services.Transcription;
+using Spikit.ViewModels.Settings;
 
 namespace Spikit.Tests.Services.Orchestration;
 
@@ -30,6 +32,19 @@ public class DictationOrchestratorTests
             _hotkey.Object, _audio.Object, _transcription.Object, _insertion.Object,
             _presenter.Object, _historyStore.Object, _settings, _processResolver,
             _toast.Object,
+            NullLogger<DictationOrchestrator>.Instance);
+        orchestrator.Start();
+        return orchestrator;
+    }
+
+    private DictationOrchestrator BuildAndStartWithAuth(
+        IAuthService auth,
+        ISettingsWindowPresenter? settingsPresenter = null)
+    {
+        var orchestrator = new DictationOrchestrator(
+            _hotkey.Object, _audio.Object, _transcription.Object, _insertion.Object,
+            _presenter.Object, _historyStore.Object, _settings, _processResolver,
+            _toast.Object, auth, settingsPresenter,
             NullLogger<DictationOrchestrator>.Instance);
         orchestrator.Start();
         return orchestrator;
@@ -752,6 +767,139 @@ public class DictationOrchestratorTests
         Assert.Equal(target, orchestrator.State);
     }
 
+    // ===== EP-10.12 — Gate de tier=Expired bloquea recording =====
+
+    [Fact]
+    public void Hotkey_press_with_Expired_tier_does_NOT_start_recording()
+    {
+        var auth = new FakeAuthService
+        {
+            State = AuthSessionState.LoggedIn,
+            CurrentEntitlement = new Entitlement(Tier.Expired, null, null, null, 0),
+        };
+        var presenter = new Mock<ISettingsWindowPresenter>();
+        var orchestrator = BuildAndStartWithAuth(auth, presenter.Object);
+
+        RaiseHotkeyPressed();
+
+        _audio.Verify(a => a.StartAsync(It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(DictationState.Idle, orchestrator.State);
+    }
+
+    [Fact]
+    public void Hotkey_press_with_Expired_tier_fires_LockedHotkeyPressed_event()
+    {
+        var auth = new FakeAuthService
+        {
+            State = AuthSessionState.LoggedIn,
+            CurrentEntitlement = new Entitlement(Tier.Expired, null, null, null, 0),
+        };
+        var orchestrator = BuildAndStartWithAuth(auth);
+        var fired = 0;
+        orchestrator.LockedHotkeyPressed += (_, _) => fired++;
+
+        RaiseHotkeyPressed();
+
+        Assert.Equal(1, fired);
+    }
+
+    [Fact]
+    public void Hotkey_press_with_Expired_tier_shows_warning_toast_with_action()
+    {
+        var auth = new FakeAuthService
+        {
+            State = AuthSessionState.LoggedIn,
+            CurrentEntitlement = new Entitlement(Tier.Expired, null, null, null, 0),
+        };
+        var presenter = new Mock<ISettingsWindowPresenter>();
+        var orchestrator = BuildAndStartWithAuth(auth, presenter.Object);
+
+        RaiseHotkeyPressed();
+
+        _toast.Verify(t => t.Show(
+            ToastSeverity.Warning,
+            It.Is<string>(s => s.Contains("expiró", StringComparison.OrdinalIgnoreCase)),
+            It.IsAny<string?>(),
+            It.Is<ToastAction>(a => a != null && a.Label.Contains("Pro", StringComparison.OrdinalIgnoreCase)),
+            It.IsAny<TimeSpan?>(),
+            It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
+    public void Toast_action_opens_Settings_to_Plan_section()
+    {
+        var auth = new FakeAuthService
+        {
+            State = AuthSessionState.LoggedIn,
+            CurrentEntitlement = new Entitlement(Tier.Expired, null, null, null, 0),
+        };
+        var presenter = new Mock<ISettingsWindowPresenter>();
+        ToastAction? capturedAction = null;
+        _toast.Setup(t => t.Show(
+                It.IsAny<ToastSeverity>(), It.IsAny<string>(), It.IsAny<string?>(),
+                It.IsAny<ToastAction>(), It.IsAny<TimeSpan?>(), It.IsAny<string?>()))
+            .Callback<ToastSeverity, string, string?, ToastAction?, TimeSpan?, string?>(
+                (_, _, _, action, _, _) => capturedAction = action);
+
+        var orchestrator = BuildAndStartWithAuth(auth, presenter.Object);
+        RaiseHotkeyPressed();
+
+        Assert.NotNull(capturedAction);
+        capturedAction!.OnInvoke();
+
+        presenter.Verify(p => p.Open(SettingsSection.Plan), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(Tier.Trial)]
+    [InlineData(Tier.Pro)]
+    [InlineData(Tier.Byok)]
+    public void Hotkey_press_with_active_tier_starts_recording_normally(Tier activeTier)
+    {
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var auth = new FakeAuthService
+        {
+            State = AuthSessionState.LoggedIn,
+            CurrentEntitlement = new Entitlement(activeTier, null, null, null, 0),
+        };
+        var orchestrator = BuildAndStartWithAuth(auth);
+
+        RaiseHotkeyPressed();
+
+        _audio.Verify(a => a.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+    }
+
+    [Fact]
+    public void Hotkey_press_when_LoggedOut_starts_recording_legacy_path()
+    {
+        // Legacy BYOK pre-EP-10.11: user no logueado, igual graba (la transcripción
+        // pega contra OpenAI directo con la key del onboarding).
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var auth = new FakeAuthService
+        {
+            State = AuthSessionState.LoggedOut,
+            CurrentEntitlement = null,
+        };
+        var orchestrator = BuildAndStartWithAuth(auth);
+
+        RaiseHotkeyPressed();
+
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+    }
+
+    [Fact]
+    public void Hotkey_press_when_no_AuthService_injected_starts_recording_legacy_path()
+    {
+        // Constructor legacy de 10 args (sin auth) — el gate no aplica, recording arranca.
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var orchestrator = BuildAndStart();
+
+        RaiseHotkeyPressed();
+
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+    }
+
     // ===== Fakes para historial / process resolver =====
 
     private sealed class FakeSettingsService : ISettingsService
@@ -766,5 +914,33 @@ public class DictationOrchestratorTests
     {
         public string ResolvedName { get; set; } = "test.exe";
         public string Resolve(IntPtr hwnd) => ResolvedName;
+    }
+
+    // Fake IAuthService minimalista — solo expone State + CurrentEntitlement que es lo
+    // que el orchestrator lee para el gate de EP-10.12. Los demás métodos son no-ops.
+    private sealed class FakeAuthService : IAuthService
+    {
+        public AuthSessionState State { get; set; } = AuthSessionState.LoggedOut;
+        public UserProfile? CurrentProfile { get; set; }
+        public Entitlement? CurrentEntitlement { get; set; }
+        public event EventHandler? StateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public Task InitializeAsync(CancellationToken ct) => Task.CompletedTask;
+        public Task StartLoginAsync(CancellationToken ct) => Task.CompletedTask;
+        public Task<AuthCallbackResult> HandleAuthCallbackAsync(
+            IReadOnlyDictionary<string, string> queryParams, CancellationToken ct) =>
+            Task.FromResult(new AuthCallbackResult(false, null, null, null));
+        public Task LogoutAsync(CancellationToken ct) => Task.CompletedTask;
+        public Task<string?> GetCurrentAccessTokenAsync(CancellationToken ct) =>
+            Task.FromResult<string?>(null);
+        public Task<Entitlement?> RefreshEntitlementAsync(CancellationToken ct) =>
+            Task.FromResult(CurrentEntitlement);
+        public Task<Entitlement?> RefreshEntitlementWithBackoffAsync(
+            Func<Entitlement, bool> isAcceptable, CancellationToken ct) =>
+            Task.FromResult(CurrentEntitlement);
     }
 }

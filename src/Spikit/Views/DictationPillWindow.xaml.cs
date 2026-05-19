@@ -162,7 +162,10 @@ public partial class DictationPillWindow : Window
             // usuario note nada (ocurre antes del fade-in).
             ForceTopmost(new WindowInteropHelper(this).Handle);
 
-            ApplyBorderAndShadow(quiet: newMode == PillVisualMode.Initializing);
+            // Initializing y Locked usan border quiet (sin glow rojo). Recording / Logo
+            // / Transcribing usan el border active con glow.
+            var entryIsQuiet = newMode is PillVisualMode.Initializing or PillVisualMode.Locked;
+            ApplyBorderAndShadow(quiet: entryIsQuiet);
             LogoWaveControl.Mode = MapToLogoMode(newMode);
             ResetLogoWaveTransform();
             if (instant) { RootGrid.Opacity = 1; RootTranslate.Y = 0; }
@@ -185,6 +188,17 @@ public partial class DictationPillWindow : Window
             LogoWaveControl.Mode = LogoWaveMode.Logo;
             if (instant) ResetLogoWaveTransform();
             else MorphToLogo();
+            return;
+        }
+
+        // EP-10.12: hidden → locked se maneja arriba con FadeIn. Cualquier otra → locked
+        // (poco común, pero defensivo) swap directo a logo + border quiet (sin glow rojo,
+        // comunicando "no estamos grabando"). El toast paralelo lleva la CTA del user.
+        if (newMode == PillVisualMode.Locked)
+        {
+            ApplyBorderAndShadow(quiet: true);
+            LogoWaveControl.Mode = LogoWaveMode.Logo;
+            ResetLogoWaveTransform();
             return;
         }
 
@@ -230,6 +244,7 @@ public partial class DictationPillWindow : Window
         PillVisualMode.Recording => LogoWaveMode.Recording,
         PillVisualMode.Transcribing => LogoWaveMode.Transcribing,
         PillVisualMode.Logo => LogoWaveMode.Logo,
+        PillVisualMode.Locked => LogoWaveMode.Logo,
         _ => LogoWaveMode.Idle,
     };
 

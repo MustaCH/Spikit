@@ -13,6 +13,10 @@ public enum PillVisualMode
     Transcribing,
     Logo,
     Leaving,
+    // EP-10.12: el hotkey se apretó con tier=Expired. Pill muestra el logo estático
+    // con borde quiet (sin glow rojo) por LockedFlashDuration y después se va. La CTA
+    // real al user va por toast (Pill tiene WS_EX_TRANSPARENT, no acepta clicks).
+    Locked,
 }
 
 // Mapea estado del DictationOrchestrator + sub-estado del IAudioCaptureService al
@@ -21,6 +25,9 @@ public sealed class DictationPillViewModel : ViewModelBase, IDisposable
 {
     private static readonly TimeSpan LogoFlashDuration = TimeSpan.FromMilliseconds(600);
     private static readonly TimeSpan LeaveDuration = TimeSpan.FromMilliseconds(420);
+    // EP-10.12: cuánto se ve el visual locked antes del fade-out. Más largo que el flash
+    // de logo (600ms) para dar tiempo a leer el toast que también aparece.
+    private static readonly TimeSpan LockedFlashDuration = TimeSpan.FromMilliseconds(1400);
 
     private readonly DictationOrchestrator _orchestrator;
     private readonly IAudioCaptureService _audio;
@@ -55,6 +62,7 @@ public sealed class DictationPillViewModel : ViewModelBase, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _orchestrator.StateChanged += OnOrchestratorStateChanged;
+        _orchestrator.LockedHotkeyPressed += OnLockedHotkeyPressed;
         _audio.StateChanged += OnAudioStateChanged;
         _audio.RmsLevelChanged += OnRmsLevelChanged;
     }
@@ -139,6 +147,34 @@ public sealed class DictationPillViewModel : ViewModelBase, IDisposable
         });
     }
 
+    private void OnLockedHotkeyPressed(object? sender, EventArgs e)
+    {
+        // El orchestrator dispara esto cuando bloquea un press por tier=Expired. La pill
+        // muestra brevemente un visual "locked" — silenciado, sin glow rojo, fijo en logo.
+        // La CTA del user va por toast (raíz: WS_EX_TRANSPARENT en la pill).
+        _dispatcher.BeginInvoke(StartLockedFlash);
+    }
+
+    private void StartLockedFlash()
+    {
+        VisualMode = PillVisualMode.Locked;
+
+        _logoFlashCts?.Cancel();
+        _logoFlashCts = new CancellationTokenSource();
+        var ct = _logoFlashCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(LockedFlashDuration, ct); }
+            catch (OperationCanceledException) { return; }
+
+            await _dispatcher.InvokeAsync(() =>
+            {
+                if (_visualMode == PillVisualMode.Locked) StartLeavingThenHide();
+            });
+        });
+    }
+
     private void StartLeavingThenHide()
     {
         VisualMode = PillVisualMode.Leaving;
@@ -164,6 +200,7 @@ public sealed class DictationPillViewModel : ViewModelBase, IDisposable
         if (_disposed) return;
         _disposed = true;
         _orchestrator.StateChanged -= OnOrchestratorStateChanged;
+        _orchestrator.LockedHotkeyPressed -= OnLockedHotkeyPressed;
         _audio.StateChanged -= OnAudioStateChanged;
         _audio.RmsLevelChanged -= OnRmsLevelChanged;
         _logoFlashCts?.Cancel();

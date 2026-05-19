@@ -4,12 +4,14 @@ using Microsoft.Extensions.Logging;
 using Spikit.Models;
 using Spikit.Native;
 using Spikit.Services.Audio;
+using Spikit.Services.Auth;
 using Spikit.Services.History;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
 using Spikit.Services.Settings;
 using Spikit.Services.Toast;
 using Spikit.Services.Transcription;
+using Spikit.ViewModels.Settings;
 
 namespace Spikit.Services.Orchestration;
 
@@ -32,6 +34,11 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
     private readonly ISettingsService _settingsService;
     private readonly ITargetProcessResolver _processResolver;
     private readonly IToastService _toast;
+    // EP-10.12: gate de "tier expirado". Si el user está logueado y su entitlement
+    // cacheado dice Expired, el hotkey no inicia sesión — emitimos LockedHotkeyPressed
+    // + toast con CTA hacia Settings → Plan.
+    private readonly IAuthService? _auth;
+    private readonly ISettingsWindowPresenter? _settingsPresenter;
     private readonly ILogger<DictationOrchestrator> _logger;
     private readonly Dispatcher _dispatcher;
 
@@ -67,6 +74,26 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         ITargetProcessResolver processResolver,
         IToastService toast,
         ILogger<DictationOrchestrator> logger)
+        : this(hotkey, audio, transcription, insertion, floatingPresenter, historyStore,
+               settingsService, processResolver, toast, auth: null, settingsPresenter: null, logger)
+    {
+    }
+
+    // Overload con auth gate. El DI productivo usa éste; el ctor legacy queda para tests
+    // viejos que no necesitan testear el gate.
+    public DictationOrchestrator(
+        IHotkeyService hotkey,
+        IAudioCaptureService audio,
+        ITranscriptionService transcription,
+        ITextInsertionService insertion,
+        IFloatingResultPresenter floatingPresenter,
+        IHistoryStore historyStore,
+        ISettingsService settingsService,
+        ITargetProcessResolver processResolver,
+        IToastService toast,
+        IAuthService? auth,
+        ISettingsWindowPresenter? settingsPresenter,
+        ILogger<DictationOrchestrator> logger)
     {
         _hotkey = hotkey;
         _audio = audio;
@@ -77,6 +104,8 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         _settingsService = settingsService;
         _processResolver = processResolver;
         _toast = toast;
+        _auth = auth;
+        _settingsPresenter = settingsPresenter;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
@@ -126,6 +155,11 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
     // Texto transcripto exitoso (post-Whisper, pre-insertion). El consumer puede usarlo
     // para mostrar feedback visual o registrar telemetría.
     public event EventHandler<string>? TranscriptionCompleted;
+
+    // EP-10.12: emitido cuando el user apreta el hotkey teniendo tier=Expired. La pill
+    // se suscribe para mostrar un visual "locked" breve; el toast con la CTA real lo
+    // dispara el orchestrator directo (consistencia con CB-7 hotkey conflict).
+    public event EventHandler? LockedHotkeyPressed;
 
     public void Start()
     {
@@ -209,6 +243,19 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
         if (_state != DictationState.Idle)
         {
             _logger.LogDebug("HotkeyPressed ignorado, estado actual: {State} (RN-6)", _state);
+            return;
+        }
+
+        // EP-10.12: gate de tier expirado. Si el user está logueado y el cache de
+        // entitlement dice Expired, no iniciamos sesión — feedback vía toast con CTA
+        // hacia Settings → Plan. Defensiva contra cache stale: el server-side igual
+        // rechazaría con 402 desde el Edge Function `transcribe` (ADR-0007 § 5), pero
+        // hacerlo client-side evita un round-trip y da feedback inmediato.
+        if (IsBlockedByExpiredTier())
+        {
+            _logger.LogInformation("HotkeyPressed bloqueado: tier=Expired (EP-10.12)");
+            LockedHotkeyPressed?.Invoke(this, EventArgs.Empty);
+            ShowExpiredToast();
             return;
         }
 
@@ -556,6 +603,30 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
     private void EnsureNotDisposed()
     {
         if (_disposed) throw new ObjectDisposedException(nameof(DictationOrchestrator));
+    }
+
+    private bool IsBlockedByExpiredTier()
+    {
+        // Gate solo aplica si el user está logueado. Si no, asumimos BYOK pre-EP-10.11
+        // (cliente habla directo con OpenAI con su key) — el flow legacy no chequea tier.
+        if (_auth is null) return false;
+        if (_auth.State != AuthSessionState.LoggedIn) return false;
+        return _auth.CurrentEntitlement?.Tier == Tier.Expired;
+    }
+
+    private void ShowExpiredToast()
+    {
+        ToastAction? action = _settingsPresenter is null
+            ? null
+            : new ToastAction("Suscribite a Pro", () => _settingsPresenter.Open(SettingsSection.Plan));
+
+        _toast.Show(
+            ToastSeverity.Warning,
+            "Tu acceso a Spikit expiró",
+            message: "Suscribite a Pro para seguir dictando.",
+            action: action,
+            autoDismiss: TimeSpan.FromSeconds(8),
+            dedupeKey: "tier-expired-hotkey");
     }
 
     // Lee privacy.historyEnabled del settings y, si está ON, agrega una entry al
