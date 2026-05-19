@@ -185,6 +185,59 @@ public class SingleInstanceGuardTests
     }
 
     [Fact]
+    public void Secondary_forwards_URI_and_primary_receives_UriForwardRequested_with_payload()
+    {
+        var options = UniqueOptions();
+        using var primary = NewGuard(options);
+        Assert.Equal(SingleInstanceAcquisition.Primary, primary.TryAcquire());
+
+        string? receivedUri = null;
+        using var uriReceived = new ManualResetEventSlim(false);
+        primary.UriForwardRequested += (_, uri) =>
+        {
+            receivedUri = uri;
+            uriReceived.Set();
+        };
+
+        var forwarded = "spikit://auth-callback?access_token=xyz&refresh_token=abc";
+        var secondaryResult = AcquireOnDedicatedThread(() =>
+        {
+            using var secondary = NewGuard(options);
+            return secondary.TryAcquire(forwardedUri: forwarded);
+        });
+        Assert.Equal(SingleInstanceAcquisition.SecondaryNotified, secondaryResult);
+
+        Assert.True(uriReceived.Wait(TimeSpan.FromSeconds(3)),
+            "Primary debería haber recibido UriForwardRequested después del notify del secondary con URI");
+        Assert.Equal(forwarded, receivedUri);
+    }
+
+    [Fact]
+    public void Secondary_without_forwardedUri_fires_OpenRequested_not_UriForwardRequested()
+    {
+        // Verifica que el comportamiento por default (OPEN_SETTINGS) sigue intacto y NO
+        // confunde con el nuevo path de URI.
+        var options = UniqueOptions();
+        using var primary = NewGuard(options);
+        Assert.Equal(SingleInstanceAcquisition.Primary, primary.TryAcquire());
+
+        using var openFired = new ManualResetEventSlim(false);
+        var uriFiredCount = 0;
+        primary.OpenRequested += (_, _) => openFired.Set();
+        primary.UriForwardRequested += (_, _) => Interlocked.Increment(ref uriFiredCount);
+
+        var secondaryResult = AcquireOnDedicatedThread(() =>
+        {
+            using var secondary = NewGuard(options);
+            return secondary.TryAcquire();
+        });
+        Assert.Equal(SingleInstanceAcquisition.SecondaryNotified, secondaryResult);
+
+        Assert.True(openFired.Wait(TimeSpan.FromSeconds(3)));
+        Assert.Equal(0, uriFiredCount);
+    }
+
+    [Fact]
     public void Dispose_is_safe_to_call_multiple_times()
     {
         var options = UniqueOptions();

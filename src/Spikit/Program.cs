@@ -56,6 +56,12 @@ public static class Program
 
         ConfigureSerilog();
 
+        // CLI args parseados antes del single-instance gate: si la app fue lanzada con
+        // un deep-link `spikit://...` (Windows abre la app via protocol handler) y ya
+        // hay una instancia corriendo, la segunda forwardea el URI exacto a la primera
+        // en lugar del default OPEN_SETTINGS. Ver SingleInstanceGuard.TryAcquire(uri).
+        var cliArgs = new CommandLineArgs(args);
+
         // Single-instance gate (RN-9 / CB-11): se evalúa antes de levantar el host de DI
         // para evitar inicializar tray, hotkey, audio, etc. en una segunda instancia que
         // está condenada a salir. El guard pasa al DI como singleton sólo si somos
@@ -64,7 +70,7 @@ public static class Program
         var instanceGuard = new SingleInstanceGuard(
             SingleInstanceOptions.Default,
             bootstrapLoggerFactory.CreateLogger<SingleInstanceGuard>());
-        var acquisition = instanceGuard.TryAcquire();
+        var acquisition = instanceGuard.TryAcquire(forwardedUri: cliArgs.SpikitUri);
         if (acquisition == SingleInstanceAcquisition.SecondaryNotified)
         {
             instanceGuard.Dispose();
@@ -74,8 +80,6 @@ public static class Program
 
         try
         {
-            var cliArgs = new CommandLineArgs(args);
-
             var host = Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration((_, config) =>
                 {
@@ -244,6 +248,10 @@ public static class Program
                     services.AddHttpClient<ISupabaseEntitlementClient, SupabaseEntitlementClient>(c =>
                         c.Timeout = TimeSpan.FromSeconds(15));
                     services.AddSingleton<IAuthService, AuthService>();
+                    // EP-10.4 — Dispatcher invocado en boot directo (argv `spikit://...`)
+                    // y vía SingleInstance.UriForwardRequested (segunda instancia forwardea
+                    // a la primaria). Parsea + rutea por SpikitUriKind.
+                    services.AddSingleton<ISpikitUriDispatcher, SpikitUriDispatcher>();
 
                     // FloatingResultViewModel es transient: una instancia nueva por window.
                     services.AddTransient<FloatingResultViewModel>();

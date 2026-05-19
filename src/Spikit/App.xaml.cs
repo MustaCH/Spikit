@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Spikit.Cli;
 using Spikit.Models;
+using Spikit.Services.Auth;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Orchestration;
@@ -50,6 +51,24 @@ public partial class App : Application
         // este evento desde un thread del threadpool. Marshalamos al UI thread y
         // decidimos qué window traer al frente según el modo activo.
         _instanceGuard.OpenRequested += OnExternalOpenRequested;
+
+        // EP-10.4: si la segunda instancia fue lanzada por Windows con un deep-link
+        // `spikit://...` (callback del magic link o retorno de Stripe), recibimos el
+        // URI por el pipe y se lo pasamos al dispatcher (que ya está en DI).
+        _instanceGuard.UriForwardRequested += OnExternalUriRequested;
+
+        // EP-10.4: si hay tokens persistidos de una sesión previa, validamos contra
+        // Supabase y poblamos State + Profile + Entitlement cache. Fire-and-forget —
+        // la red puede tardar y no queremos bloquear startup. AuthService maneja errores
+        // de red preservando los tokens; errores de validación los borra y deja LoggedOut.
+        _ = _host.Services.GetRequiredService<IAuthService>().InitializeAsync(CancellationToken.None);
+
+        // Si la app fue lanzada con un deep-link (Windows abre Spikit con `spikit://...`
+        // y nosotros somos la primera instancia), procesamos el URI ya con el host arriba.
+        if (!string.IsNullOrEmpty(_cliArgs.SpikitUri))
+        {
+            DispatchSpikitUri(_cliArgs.SpikitUri);
+        }
 
         // Bootstrap del tema: leemos el setting persistido y lo aplicamos antes de mostrar
         // ventanas. Si el archivo no existe (primera ejecución) o está corrupto, queda
@@ -218,6 +237,26 @@ public partial class App : Application
         });
     }
 
+    private void OnExternalUriRequested(object? sender, string uri)
+    {
+        // Mismo patrón que OnExternalOpenRequested — el evento llega del threadpool del
+        // listener IPC. Marshal al UI thread con BeginInvoke; el dispatcher hace IO async.
+        Dispatcher.BeginInvoke(() => DispatchSpikitUri(uri));
+    }
+
+    private void DispatchSpikitUri(string uri)
+    {
+        try
+        {
+            var dispatcher = _host.Services.GetRequiredService<ISpikitUriDispatcher>();
+            _ = dispatcher.DispatchAsync(uri, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Dispatch de spikit:// falló al arrancar ({Uri})", uri);
+        }
+    }
+
     private bool TryBringActiveBootstrapWindowToFront()
     {
         foreach (Window window in Windows)
@@ -240,6 +279,7 @@ public partial class App : Application
         _logger.LogInformation("App exiting");
 
         _instanceGuard.OpenRequested -= OnExternalOpenRequested;
+        _instanceGuard.UriForwardRequested -= OnExternalUriRequested;
         try { _instanceGuard.Dispose(); }
         catch (Exception ex) { _logger.LogWarning(ex, "Error disposing single-instance guard"); }
 

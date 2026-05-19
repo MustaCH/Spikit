@@ -22,6 +22,10 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
 {
     private const string OpenSettingsMessage = "OPEN_SETTINGS";
 
+    // Prefix del protocolo de mensajes para forward de deep-links. Espacio separa el
+    // prefijo del payload: `URI spikit://auth-callback?...`.
+    private const string UriMessagePrefix = "URI ";
+
     private readonly SingleInstanceOptions _options;
     private readonly ILogger<SingleInstanceGuard> _logger;
 
@@ -35,6 +39,7 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
     private bool _disposed;
 
     public event EventHandler? OpenRequested;
+    public event EventHandler<string>? UriForwardRequested;
 
     public SingleInstanceGuard(SingleInstanceOptions options, ILogger<SingleInstanceGuard> logger)
     {
@@ -42,7 +47,7 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
         _logger = logger;
     }
 
-    public SingleInstanceAcquisition TryAcquire()
+    public SingleInstanceAcquisition TryAcquire(string? forwardedUri = null)
     {
         lock (_gate)
         {
@@ -77,11 +82,16 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
             _mutex.Dispose();
             _mutex = null;
 
-            if (TryNotifyExisting())
+            var message = string.IsNullOrEmpty(forwardedUri)
+                ? OpenSettingsMessage
+                : UriMessagePrefix + forwardedUri;
+
+            if (TryNotifyExisting(message))
             {
                 _result = SingleInstanceAcquisition.SecondaryNotified;
                 _logger.LogInformation(
-                    "Single-instance: SECONDARY — OPEN_SETTINGS enviado a {Pipe}, terminando",
+                    "Single-instance: SECONDARY — {Kind} enviado a {Pipe}, terminando",
+                    string.IsNullOrEmpty(forwardedUri) ? "OPEN_SETTINGS" : "URI",
                     _options.PipeName);
                 return _result.Value;
             }
@@ -94,7 +104,7 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
         }
     }
 
-    private bool TryNotifyExisting()
+    private bool TryNotifyExisting(string message)
     {
         try
         {
@@ -106,7 +116,7 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
             client.Connect(_options.ConnectTimeoutMilliseconds);
 
             using var writer = new StreamWriter(client) { AutoFlush = true };
-            writer.WriteLine(OpenSettingsMessage);
+            writer.WriteLine(message);
             return true;
         }
         catch (TimeoutException)
@@ -115,7 +125,7 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Error de IO escribiendo OPEN_SETTINGS al pipe primario");
+            _logger.LogWarning(ex, "Error de IO escribiendo mensaje al pipe primario");
             return false;
         }
         catch (UnauthorizedAccessException ex)
@@ -161,6 +171,12 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
                     _logger.LogInformation("Pipe IPC: OPEN_SETTINGS recibido");
                     RaiseOpenRequested();
                 }
+                else if (line is not null && line.StartsWith(UriMessagePrefix, StringComparison.Ordinal))
+                {
+                    var uri = line[UriMessagePrefix.Length..];
+                    _logger.LogInformation("Pipe IPC: URI recibido ({Uri})", uri);
+                    RaiseUriForwardRequested(uri);
+                }
                 else
                 {
                     _logger.LogWarning("Pipe IPC: mensaje desconocido recibido ({Line})", line ?? "<null>");
@@ -193,6 +209,18 @@ internal sealed class SingleInstanceGuard : ISingleInstanceGuard
         {
             // El subscriber falló — no debería derribar el listener loop.
             _logger.LogError(ex, "Subscriber de OpenRequested tiró excepción");
+        }
+    }
+
+    private void RaiseUriForwardRequested(string uri)
+    {
+        try
+        {
+            UriForwardRequested?.Invoke(this, uri);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Subscriber de UriForwardRequested tiró excepción");
         }
     }
 
