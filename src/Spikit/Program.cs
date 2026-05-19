@@ -23,6 +23,7 @@ using Spikit.Services.Theme;
 using Spikit.Services.Toast;
 using Spikit.Services.Tray;
 using Spikit.Services.Transcription;
+using Spikit.Services.Velopack;
 using Spikit.ViewModels;
 using Spikit.ViewModels.Onboarding;
 using Spikit.ViewModels.Settings;
@@ -52,7 +53,19 @@ public static class Program
         // efecto antes de que la app intente abrir ventanas o tocar el filesystem.
         // Velopack inspecciona Environment.GetCommandLineArgs() internamente — no se le
         // pasan los `args` del Main como parámetro.
-        VelopackApp.Build().Run();
+        //
+        // EP-10.4 / 3.1 — registro del protocol handler `spikit://`:
+        // - OnAfterInstallFastCallback: primera instalación → escribe HKCU\Software\Classes\spikit.
+        // - OnAfterUpdateFastCallback: cada update → re-escribe porque el path del .exe
+        //   cambia con la versión (Velopack instala en .../app-X.Y.Z/Spikit.exe).
+        // - OnBeforeUninstallFastCallback: limpia la key antes de borrar archivos.
+        // Los FastCallbacks tienen 15-30s budget y llaman Environment.Exit() después, así
+        // que Serilog NO está disponible — el handler usa su propio logger a archivo.
+        VelopackApp.Build()
+            .OnAfterInstallFastCallback(_ => SpikitProtocolHandler.Register())
+            .OnAfterUpdateFastCallback(_ => SpikitProtocolHandler.Register())
+            .OnBeforeUninstallFastCallback(_ => SpikitProtocolHandler.Unregister())
+            .Run();
 
         ConfigureSerilog();
 
