@@ -937,6 +937,8 @@ public class DictationOrchestratorTests
         public Task LogoutAsync(CancellationToken ct) => Task.CompletedTask;
         public Task<string?> GetCurrentAccessTokenAsync(CancellationToken ct) =>
             Task.FromResult<string?>(null);
+        public Task<string?> ForceRefreshAccessTokenAsync(CancellationToken ct) =>
+            Task.FromResult<string?>(null);
         public Task<Entitlement?> RefreshEntitlementAsync(CancellationToken ct) =>
             Task.FromResult(CurrentEntitlement);
         public Task<Entitlement?> RefreshEntitlementWithBackoffAsync(

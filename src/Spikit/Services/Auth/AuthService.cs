@@ -249,6 +249,37 @@ public sealed class AuthService : IAuthService, IDisposable
         }
     }
 
+    public async Task<string?> ForceRefreshAccessTokenAsync(CancellationToken ct)
+    {
+        var tokens = _tokenStore.Read();
+        if (tokens is null) return null;
+
+        await _refreshLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            // Re-leer adentro del lock por la misma razón que GetCurrentAccessTokenAsync.
+            tokens = _tokenStore.Read();
+            if (tokens is null) return null;
+
+            try
+            {
+                var refreshed = await _authClient.RefreshAsync(tokens.RefreshToken, ct).ConfigureAwait(false);
+                _tokenStore.Write(refreshed);
+                return refreshed.AccessToken;
+            }
+            catch (AuthRefreshFailedException ex)
+            {
+                _logger.LogWarning(ex, "ForceRefresh: refresh rechazado — limpio sesión");
+                ClearAndLogout();
+                return null;
+            }
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
+    }
+
     public async Task<Entitlement?> RefreshEntitlementAsync(CancellationToken ct)
     {
         var accessToken = await GetCurrentAccessTokenAsync(ct).ConfigureAwait(false);

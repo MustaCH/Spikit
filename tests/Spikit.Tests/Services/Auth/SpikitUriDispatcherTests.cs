@@ -188,6 +188,7 @@ public class SpikitUriDispatcherTests
         public Task StartLoginAsync(CancellationToken ct) => Task.CompletedTask;
         public Task LogoutAsync(CancellationToken ct) => Task.CompletedTask;
         public Task<string?> GetCurrentAccessTokenAsync(CancellationToken ct) => Task.FromResult<string?>(null);
+        public Task<string?> ForceRefreshAccessTokenAsync(CancellationToken ct) => Task.FromResult<string?>(null);
 
         public Task<AuthCallbackResult> HandleAuthCallbackAsync(
             IReadOnlyDictionary<string, string> queryParams, CancellationToken ct)

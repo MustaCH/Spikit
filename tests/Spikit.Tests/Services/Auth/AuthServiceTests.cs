@@ -323,6 +323,50 @@ public class AuthServiceTests
         Assert.Equal(AuthSessionState.LoggedOut, svc.State);
     }
 
+    // ────────────────────────────── ForceRefreshAccessTokenAsync ──────────────────
+
+    [Fact]
+    public async Task ForceRefreshAccessTokenAsync_calls_refresh_even_when_token_is_fresh()
+    {
+        // El token local está fresco (1h hasta expirar) pero el caller pide force-refresh
+        // — ej. el server devolvió 401 con un token que parecía válido.
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _authClient.NextRefreshResult = new AccessTokenPair("brand-new", "brand-new-refresh",
+            _time.GetUtcNow().AddHours(1));
+        var svc = BuildService();
+
+        var token = await svc.ForceRefreshAccessTokenAsync(CancellationToken.None);
+
+        Assert.Equal("brand-new", token);
+        Assert.Equal("brand-new", _tokens.Pair!.AccessToken);
+        Assert.Equal(1, _authClient.RefreshCallCount);
+    }
+
+    [Fact]
+    public async Task ForceRefreshAccessTokenAsync_returns_null_when_no_session()
+    {
+        var svc = BuildService();
+
+        var token = await svc.ForceRefreshAccessTokenAsync(CancellationToken.None);
+
+        Assert.Null(token);
+        Assert.Equal(0, _authClient.RefreshCallCount);
+    }
+
+    [Fact]
+    public async Task ForceRefreshAccessTokenAsync_clears_session_when_refresh_fails()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _authClient.RefreshThrows = new AuthRefreshFailedException("revoked");
+        var svc = BuildService();
+
+        var token = await svc.ForceRefreshAccessTokenAsync(CancellationToken.None);
+
+        Assert.Null(token);
+        Assert.Null(_tokens.Pair);
+        Assert.Equal(AuthSessionState.LoggedOut, svc.State);
+    }
+
     // ───────────────────────────── RefreshEntitlementAsync ────────────────────────
 
     [Fact]

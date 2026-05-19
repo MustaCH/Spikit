@@ -212,11 +212,24 @@ public static class Program
                     services.AddSingleton<IOptions<WhisperApiOptions>>(sp =>
                         Options.Create(sp.GetRequiredService<WhisperApiOptions>()));
 
-                    services.AddHttpClient<ITranscriptionService, WhisperApiTranscriptionService>((sp, client) =>
+                    // EP-10.11 — bifurcación BYOK / Trial+Pro de la transcripción.
+                    // Los dos clientes concretos viven como typed HttpClients independientes;
+                    // TieredTranscriptionService es la fachada pública vía ITranscriptionService
+                    // y elige según el tier del user en runtime.
+                    services.AddHttpClient<WhisperApiTranscriptionService>((sp, client) =>
                     {
                         var opts = sp.GetRequiredService<WhisperApiOptions>();
                         client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
                     });
+                    services.AddHttpClient<ProxyTranscriptionService>((sp, client) =>
+                    {
+                        // Mismo timeout que el direct path — la diferencia de latencia del hop
+                        // adicional al Edge Function es ~50-150ms, despreciable vs el upload
+                        // del WAV + el round-trip a OpenAI.
+                        var opts = sp.GetRequiredService<WhisperApiOptions>();
+                        client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
+                    });
+                    services.AddSingleton<ITranscriptionService, TieredTranscriptionService>();
 
                     // EP-4.10: resolver del nombre del proceso target (HWND → "cursor.exe").
                     // Lo usa el orchestrator al persistir entries al historial.

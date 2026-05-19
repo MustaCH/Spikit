@@ -322,6 +322,9 @@ public class PlanSectionViewModelTests
         public Task<string?> GetCurrentAccessTokenAsync(CancellationToken ct) =>
             Task.FromResult(AccessToken);
 
+        public Task<string?> ForceRefreshAccessTokenAsync(CancellationToken ct) =>
+            Task.FromResult(AccessToken);
+
         public Task<Entitlement?> RefreshEntitlementAsync(CancellationToken ct) =>
             Task.FromResult(CurrentEntitlement);
 

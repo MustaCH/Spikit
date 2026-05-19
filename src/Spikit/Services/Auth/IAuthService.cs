@@ -46,6 +46,13 @@ public interface IAuthService
     // ya hizo logout silencioso).
     Task<string?> GetCurrentAccessTokenAsync(CancellationToken ct);
 
+    // Fuerza un refresh del access_token usando el refresh_token, ignorando el chequeo
+    // de expiry local. Para llamar cuando un endpoint upstream devuelve 401 con un
+    // token que localmente todavía parecía válido (clock skew, revocación server-side,
+    // etc.). Devuelve el nuevo access_token o null si el refresh falló (en ese caso
+    // la sesión queda LoggedOut).
+    Task<string?> ForceRefreshAccessTokenAsync(CancellationToken ct);
+
     // Fuerza un re-fetch del entitlement contra el backend, actualizando el cache.
     // Para usar después de Stripe Checkout / Portal (ADR-0007 § 4.2). Devuelve null
     // si no hay sesión activa o el fetch falló — en ambos casos el cache queda como
