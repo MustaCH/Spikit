@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Serilog;
 using Spikit.Cli;
 using Spikit.Services.Audio;
+using Spikit.Services.Auth;
 using Spikit.Services.Autostart;
 using Spikit.Services.Hotkey;
 using Spikit.Services.Insertion;
@@ -226,6 +227,23 @@ public static class Program
                     // Tester reusable: onboarding (EP-3.3) y Settings → Provider (EP-4)
                     // comparten la misma lógica de "GET /models con Bearer key".
                     services.AddHttpClient<IProviderConnectionTester, HttpProviderConnectionTester>();
+
+                    // EP-10.4 — Auth deep-link plumbing (servicios + storage + clients).
+                    // El argv handling + UI Account window se cablean en EP-10.4 (parte 3.3
+                    // pendiente) y EP-10.12 respectivamente. Por ahora el AuthService queda
+                    // disponible vía DI pero nadie lo invoca todavía — es bedrock para
+                    // EP-10.11 y EP-10.12.
+                    services.Configure<SupabaseOptions>(ctx.Configuration.GetSection("Supabase"));
+                    services.AddSingleton<IAuthTokenStore, AuthTokenStore>();
+                    services.AddSingleton<IEntitlementCache, EntitlementCache>();
+                    services.AddSingleton<IBrowserLauncher, DefaultBrowserLauncher>();
+                    // Los dos HTTP clients viven en HttpClientFactory: timeout uniforme,
+                    // pooling de conexiones, mismo patrón que WhisperApiTranscriptionService.
+                    services.AddHttpClient<ISupabaseAuthClient, SupabaseAuthClient>(c =>
+                        c.Timeout = TimeSpan.FromSeconds(15));
+                    services.AddHttpClient<ISupabaseEntitlementClient, SupabaseEntitlementClient>(c =>
+                        c.Timeout = TimeSpan.FromSeconds(15));
+                    services.AddSingleton<IAuthService, AuthService>();
 
                     // FloatingResultViewModel es transient: una instancia nueva por window.
                     services.AddTransient<FloatingResultViewModel>();
