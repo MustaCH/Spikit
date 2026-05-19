@@ -14,6 +14,18 @@ public sealed class AuthService : IAuthService, IDisposable
     // refresh. Evita race con un request HTTP en vuelo que toma 1-2s y le llega 401.
     private static readonly TimeSpan RefreshBuffer = TimeSpan.FromMinutes(2);
 
+    // Cadence de reintentos del refresh post-Stripe (ADR-0007 § 4.2). 5 intentos con
+    // delay creciente antes de cada uno; total worst-case ~8.7s. Internamente
+    // accesible para que los tests inyecten una cadence más corta.
+    internal static readonly IReadOnlyList<TimeSpan> DefaultBackoffSchedule = new[]
+    {
+        TimeSpan.FromMilliseconds(200),
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5),
+    };
+
     private readonly IAuthTokenStore _tokenStore;
     private readonly IEntitlementCache _entitlementCache;
     private readonly ISupabaseAuthClient _authClient;
@@ -254,6 +266,52 @@ public sealed class AuthService : IAuthService, IDisposable
             _logger.LogWarning(ex, "RefreshEntitlement falló — cache queda como estaba");
             return null;
         }
+    }
+
+    public Task<Entitlement?> RefreshEntitlementWithBackoffAsync(
+        Func<Entitlement, bool> isAcceptable, CancellationToken ct) =>
+        RefreshEntitlementWithBackoffAsync(isAcceptable, DefaultBackoffSchedule, ct);
+
+    // Overload internal para que los tests pasen un schedule con delays cortos sin
+    // esperar los 8.7s del default.
+    internal async Task<Entitlement?> RefreshEntitlementWithBackoffAsync(
+        Func<Entitlement, bool> isAcceptable,
+        IReadOnlyList<TimeSpan> backoffSchedule,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(isAcceptable);
+        ArgumentNullException.ThrowIfNull(backoffSchedule);
+
+        Entitlement? last = null;
+        for (var attempt = 0; attempt < backoffSchedule.Count; attempt++)
+        {
+            try
+            {
+                await Task.Delay(backoffSchedule[attempt], ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return last;
+            }
+
+            var fetched = await RefreshEntitlementAsync(ct).ConfigureAwait(false);
+            if (fetched is not null)
+            {
+                last = fetched;
+                if (isAcceptable(fetched))
+                {
+                    _logger.LogInformation(
+                        "RefreshEntitlementWithBackoff: aceptable en intento {Attempt}/{Total}",
+                        attempt + 1, backoffSchedule.Count);
+                    return fetched;
+                }
+            }
+        }
+
+        _logger.LogInformation(
+            "RefreshEntitlementWithBackoff: agotó {Total} intentos sin alcanzar el predicado",
+            backoffSchedule.Count);
+        return last;
     }
 
     public void Dispose() => _refreshLock.Dispose();

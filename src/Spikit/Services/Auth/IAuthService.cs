@@ -51,4 +51,16 @@ public interface IAuthService
     // si no hay sesión activa o el fetch falló — en ambos casos el cache queda como
     // estaba (stale).
     Task<Entitlement?> RefreshEntitlementAsync(CancellationToken ct);
+
+    // Refresca el entitlement con backoff exponencial hasta que el predicado se cumple
+    // o se agotan los reintentos. Mitiga la race condition de ADR-0007 § 4.2: entre el
+    // deep-link de retorno de Stripe Checkout (cliente piensa "ya pagué") y el webhook
+    // que actualiza `entitlements.tier` (server-side), hay milisegundos donde el cache
+    // del cliente todavía ve el tier viejo. Reintentos cada 200ms/500ms/1s/2s/5s.
+    //
+    // Devuelve el último Entitlement obtenido (sea o no aceptable según el predicado), o
+    // null si nunca pudo refrescar (sin sesión / fetch falla las 5 veces).
+    Task<Entitlement?> RefreshEntitlementWithBackoffAsync(
+        Func<Entitlement, bool> isAcceptable,
+        CancellationToken ct);
 }

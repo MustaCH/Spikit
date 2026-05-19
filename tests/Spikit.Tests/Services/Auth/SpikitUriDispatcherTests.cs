@@ -24,7 +24,7 @@ public class SpikitUriDispatcherTests
 
         Assert.Empty(_toast.Shown);
         Assert.Equal(0, _auth.HandleAuthCallbackCount);
-        Assert.Equal(0, _auth.RefreshEntitlementCount);
+        Assert.Equal(0, _auth.RefreshEntitlementWithBackoffCount);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class SpikitUriDispatcherTests
             "spikit://billing-return?status=cancel",
             CancellationToken.None);
 
-        Assert.Equal(0, _auth.RefreshEntitlementCount);
+        Assert.Equal(0, _auth.RefreshEntitlementWithBackoffCount);
         var toast = Assert.Single(_toast.Shown);
         Assert.Equal(ToastSeverity.Info, toast.Severity);
         Assert.Contains("cancelado", toast.Title, StringComparison.OrdinalIgnoreCase);
@@ -122,7 +122,7 @@ public class SpikitUriDispatcherTests
             "spikit://billing-return?status=success",
             CancellationToken.None);
 
-        Assert.Equal(1, _auth.RefreshEntitlementCount);
+        Assert.Equal(1, _auth.RefreshEntitlementWithBackoffCount);
         var toast = Assert.Single(_toast.Shown);
         Assert.Equal(ToastSeverity.Info, toast.Severity);
         Assert.Contains("Pro", toast.Title);
@@ -140,7 +140,7 @@ public class SpikitUriDispatcherTests
             "spikit://billing-return",
             CancellationToken.None);
 
-        Assert.Equal(1, _auth.RefreshEntitlementCount);
+        Assert.Equal(1, _auth.RefreshEntitlementWithBackoffCount);
         Assert.Single(_toast.Shown);
     }
 
@@ -181,6 +181,8 @@ public class SpikitUriDispatcherTests
 
         public Entitlement? NextRefreshResult { get; set; }
         public int RefreshEntitlementCount { get; private set; }
+        public int RefreshEntitlementWithBackoffCount { get; private set; }
+        public Func<Entitlement, bool>? LastBackoffPredicate { get; private set; }
 
         public Task InitializeAsync(CancellationToken ct) => Task.CompletedTask;
         public Task StartLoginAsync(CancellationToken ct) => Task.CompletedTask;
@@ -200,6 +202,14 @@ public class SpikitUriDispatcherTests
         public Task<Entitlement?> RefreshEntitlementAsync(CancellationToken ct)
         {
             RefreshEntitlementCount++;
+            return Task.FromResult(NextRefreshResult);
+        }
+
+        public Task<Entitlement?> RefreshEntitlementWithBackoffAsync(
+            Func<Entitlement, bool> isAcceptable, CancellationToken ct)
+        {
+            RefreshEntitlementWithBackoffCount++;
+            LastBackoffPredicate = isAcceptable;
             return Task.FromResult(NextRefreshResult);
         }
     }

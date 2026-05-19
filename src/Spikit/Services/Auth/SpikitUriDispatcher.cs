@@ -93,23 +93,35 @@ public sealed class SpikitUriDispatcher : ISpikitUriDispatcher
             return;
         }
 
-        // Default (sin status o status=success): refrescamos el entitlement una vez.
-        // La retry con backoff (ADR-0007 § 4.2) se implementa en EP-10.12 cuando exista
-        // la UI de Settings → Plan que es donde el polling tiene visibilidad.
-        var entitlement = await _auth.RefreshEntitlementAsync(ct).ConfigureAwait(false);
+        // Default (sin status o status=success): refrescamos el entitlement con backoff
+        // exponencial hasta que el server muestre tier='pro' o se agoten los reintentos
+        // (ADR-0007 § 4.2 — race condition entre el deep-link de retorno y el webhook
+        // que actualiza la fila).
+        var entitlement = await _auth
+            .RefreshEntitlementWithBackoffAsync(e => e.Tier == Tier.Pro, ct)
+            .ConfigureAwait(false);
 
         if (entitlement is null)
         {
+            // Nunca pudo refrescar — sin sesión, o el server no responde después de 5
+            // intentos. Toast informativo; el webhook eventualmente cierra el gap.
             _toast.Show(ToastSeverity.Info,
                 "Tu suscripción está procesándose. Te avisamos por email cuando esté lista.",
                 autoDismiss: ToastDuration, dedupeKey: "billing-return");
             return;
         }
 
-        var message = entitlement.Tier == Tier.Pro
-            ? "Pro activado. ¡Gracias!"
-            : "Suscripción actualizada.";
-        _toast.Show(ToastSeverity.Info, message,
+        if (entitlement.Tier == Tier.Pro)
+        {
+            _toast.Show(ToastSeverity.Info, "Pro activado. ¡Gracias!",
+                autoDismiss: ToastDuration, dedupeKey: "billing-return");
+            return;
+        }
+
+        // Refrescamos exitoso pero el tier todavía no es Pro tras los 5 intentos —
+        // probablemente el webhook tardó más de lo esperado. Mensaje neutral.
+        _toast.Show(ToastSeverity.Info,
+            "Tu suscripción está procesándose. Te avisamos por email cuando esté lista.",
             autoDismiss: ToastDuration, dedupeKey: "billing-return");
     }
 }

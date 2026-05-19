@@ -366,6 +366,98 @@ public class AuthServiceTests
         Assert.NotNull(_cache.LastWrite); // sigue ahí
     }
 
+    // ──────────────────────────── RefreshEntitlementWithBackoff ───────────────────
+
+    // Schedule corto para que los tests corran rápido — el real es 200/500/1s/2s/5s.
+    private static readonly IReadOnlyList<TimeSpan> FastBackoff = new[]
+    {
+        TimeSpan.FromMilliseconds(1),
+        TimeSpan.FromMilliseconds(1),
+        TimeSpan.FromMilliseconds(1),
+        TimeSpan.FromMilliseconds(1),
+        TimeSpan.FromMilliseconds(1),
+    };
+
+    [Fact]
+    public async Task RefreshEntitlementWithBackoffAsync_returns_first_acceptable_result()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _entitlementClient.NextResult = new Entitlement(Tier.Pro, null,
+            _time.GetUtcNow().AddMonths(1), null, 0);
+        var svc = BuildService();
+
+        var ent = await svc.RefreshEntitlementWithBackoffAsync(
+            e => e.Tier == Tier.Pro, FastBackoff, CancellationToken.None);
+
+        Assert.NotNull(ent);
+        Assert.Equal(Tier.Pro, ent!.Tier);
+        Assert.Equal(1, _entitlementClient.FetchCallCount);
+    }
+
+    [Fact]
+    public async Task RefreshEntitlementWithBackoffAsync_keeps_retrying_until_predicate_matches()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        // Devuelve tier=Trial las primeras 2 veces, después Pro.
+        _entitlementClient.SetupSequence(
+            new Entitlement(Tier.Trial, _time.GetUtcNow().AddDays(7), null, null, 0),
+            new Entitlement(Tier.Trial, _time.GetUtcNow().AddDays(7), null, null, 0),
+            new Entitlement(Tier.Pro, null, _time.GetUtcNow().AddMonths(1), null, 0));
+        var svc = BuildService();
+
+        var ent = await svc.RefreshEntitlementWithBackoffAsync(
+            e => e.Tier == Tier.Pro, FastBackoff, CancellationToken.None);
+
+        Assert.NotNull(ent);
+        Assert.Equal(Tier.Pro, ent!.Tier);
+        Assert.Equal(3, _entitlementClient.FetchCallCount);
+    }
+
+    [Fact]
+    public async Task RefreshEntitlementWithBackoffAsync_exhausts_retries_returns_last_value()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _entitlementClient.NextResult = new Entitlement(Tier.Trial,
+            _time.GetUtcNow().AddDays(7), null, null, 0);
+        var svc = BuildService();
+
+        var ent = await svc.RefreshEntitlementWithBackoffAsync(
+            e => e.Tier == Tier.Pro, FastBackoff, CancellationToken.None);
+
+        Assert.NotNull(ent);
+        Assert.Equal(Tier.Trial, ent!.Tier);
+        Assert.Equal(FastBackoff.Count, _entitlementClient.FetchCallCount);
+    }
+
+    [Fact]
+    public async Task RefreshEntitlementWithBackoffAsync_returns_null_when_no_session()
+    {
+        var svc = BuildService();
+
+        var ent = await svc.RefreshEntitlementWithBackoffAsync(
+            _ => true, FastBackoff, CancellationToken.None);
+
+        Assert.Null(ent);
+        Assert.Equal(0, _entitlementClient.FetchCallCount);
+    }
+
+    [Fact]
+    public async Task RefreshEntitlementWithBackoffAsync_returns_early_on_cancellation()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _entitlementClient.NextResult = new Entitlement(Tier.Trial,
+            _time.GetUtcNow().AddDays(7), null, null, 0);
+        var svc = BuildService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var ent = await svc.RefreshEntitlementWithBackoffAsync(
+            e => e.Tier == Tier.Pro, FastBackoff, cts.Token);
+
+        Assert.Null(ent);
+        Assert.Equal(0, _entitlementClient.FetchCallCount);
+    }
+
     // ────────────────────────────────────── Fakes ─────────────────────────────────
 
     private sealed class FakeTokenStore : IAuthTokenStore
@@ -423,9 +515,23 @@ public class AuthServiceTests
     {
         public Entitlement? NextResult { get; set; }
         public Exception? NextException { get; set; }
+        public int FetchCallCount { get; private set; }
+
+        private Queue<Entitlement>? _sequence;
+
+        public void SetupSequence(params Entitlement[] sequence)
+        {
+            _sequence = new Queue<Entitlement>(sequence);
+        }
+
         public Task<Entitlement> FetchAsync(string accessToken, CancellationToken ct)
         {
+            FetchCallCount++;
             if (NextException is not null) throw NextException;
+            if (_sequence is not null && _sequence.Count > 0)
+            {
+                return Task.FromResult(_sequence.Dequeue());
+            }
             return Task.FromResult(NextResult
                 ?? throw new InvalidOperationException("Test no seteó NextResult ni NextException"));
         }

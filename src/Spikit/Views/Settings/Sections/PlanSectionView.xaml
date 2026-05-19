@@ -7,23 +7,12 @@
              Background="Transparent">
 
     <UserControl.Resources>
-        <!-- Caption tipo eyebrow ("Plan actual") sobre el badge. Override del SpkTypeCaptionStyle
-             para subir el tono de fg.muted a fg.secondary y dejar el texto en mayúsculas con peso
-             Medium — el TextBlock recibe el string ya en CAPS porque WPF no tiene letter-spacing
-             nativo equivalente al CSS de la spec. -->
         <Style x:Key="PlanEyebrowStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
             <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="FontSize" Value="11" />
         </Style>
 
-        <!-- Badge brand para el plan activo. Variante solid (bg.brand.solid + fg blanco) y no muted
-             porque la card que lo contiene ya tiene tinte brand: un badge muted dentro de fondo
-             muted se mimetiza. El solid asegura contraste y comunica "estás en este plan" de un
-             solo golpe.
-             Radius: md (6px) en vez de pill (§9.8) porque "Lifetime access" es un label largo —
-             pill funciona con badges cortos (NEW, LIVE) pero deforma a óvalo con textos de 10+
-             chars. md preserva el feel "tag" sin caer en óvalo. -->
         <Style x:Key="PlanBadgeBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}" />
             <Setter Property="CornerRadius" Value="{DynamicResource SpkRadiusMd}" />
@@ -36,6 +25,13 @@
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Foreground" Value="{DynamicResource SpkFgOnBrandBrush}" />
         </Style>
+
+        <Style x:Key="BannerBorderStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
     </UserControl.Resources>
 
     <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
@@ -43,72 +39,208 @@
         <TextBlock Text="Plan"
                    Style="{StaticResource SpkTypeH1Style}"
                    Margin="0,0,0,8" />
-        <TextBlock Text="Tu suscripción a Spikit."
+        <TextBlock Text="Tu cuenta y suscripción a Spikit."
                    Style="{StaticResource SpkTypeBodyStyle}"
                    Foreground="{DynamicResource SpkFgSecondaryBrush}"
                    Margin="0,0,0,24" />
 
-        <!-- Card destacada (design-system §10.10). Tinte brand sutil + border brand subtle —
-             la única superficie de Settings con identidad visual diferenciada. Anuncia el plan
-             activo + descripción + el upsell dormante a Pro. -->
+        <!-- Error banner — visible cuando una operación async devolvió error. -->
+        <Border Style="{StaticResource BannerBorderStyle}"
+                Background="{DynamicResource SpkStateErrorBgBrush}"
+                BorderBrush="{DynamicResource SpkStateErrorFgBrush}"
+                Visibility="{Binding HasErrorMessage, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkStateErrorFgBrush}"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Busy indicator — visible mientras corre una operación remota. -->
+        <Border Style="{StaticResource BannerBorderStyle}"
+                Background="{DynamicResource SpkBgMutedBrush}"
+                BorderBrush="{DynamicResource SpkBorderBrush}"
+                Visibility="{Binding HasBusyMessage, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding BusyMessage}"
+                       FontFamily="{DynamicResource SpkFontGeist}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ===== LoggedOut: hero "Iniciá sesión" ===== -->
         <Border Background="{DynamicResource SpkBgBrandMutedBrush}"
                 BorderBrush="{DynamicResource SpkBorderBrandSubtleBrush}"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="24"
-                Margin="0,0,0,16">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <!-- Icono Lucide `crown` (mapping §8.3, mismo que el sidebar del Plan).
-                     ViewBox 24×24, stroke 2px, color fg.brand. Refuerza la identidad del plan. -->
-                <Viewbox Grid.Column="0"
-                         Width="24" Height="24"
-                         Margin="0,2,16,0"
-                         VerticalAlignment="Top">
-                    <Path Stroke="{DynamicResource SpkFgBrandBrush}"
-                          StrokeThickness="2"
-                          StrokeLineJoin="Round"
-                          StrokeStartLineCap="Round"
-                          StrokeEndLineCap="Round"
-                          Data="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z M5 21h14" />
-                </Viewbox>
-
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="PLAN ACTUAL"
-                               Style="{StaticResource PlanEyebrowStyle}"
-                               Margin="0,0,0,4" />
-
-                    <Border Style="{StaticResource PlanBadgeBorderStyle}"
-                            Margin="0,0,0,12">
-                        <TextBlock Text="{Binding PlanLabel}"
-                                   Style="{StaticResource PlanBadgeTextStyle}" />
-                    </Border>
-
-                    <TextBlock Text="{Binding PlanDescription}"
-                               FontFamily="{DynamicResource SpkFontGeist}"
-                               FontSize="13"
-                               Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                               TextWrapping="Wrap"
-                               LineHeight="20"
-                               MaxWidth="440"
-                               HorizontalAlignment="Left" />
-                </StackPanel>
-            </Grid>
+                Margin="0,0,0,16"
+                Visibility="{Binding IsLoggedOut, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <TextBlock Text="Iniciá sesión"
+                           Style="{StaticResource SpkTypeH2Style}"
+                           Margin="0,0,0,8" />
+                <TextBlock Text="Para ver tu plan o pasar a Pro tenés que iniciar sesión con tu email. Te mandamos un magic link sin password."
+                           FontFamily="{DynamicResource SpkFontGeist}"
+                           FontSize="13"
+                           Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           LineHeight="20"
+                           MaxWidth="440"
+                           HorizontalAlignment="Left"
+                           Margin="0,0,0,16" />
+                <Button Style="{StaticResource SpkPrimaryButtonStyle}"
+                        Content="Iniciar sesión / Crear cuenta"
+                        Command="{Binding LoginCommand}"
+                        HorizontalAlignment="Left" />
+            </StackPanel>
         </Border>
 
-        <!-- Upsell dormante: botón secondary disabled. El tooltip "Próximamente" requiere
-             ToolTipService.ShowOnDisabled="True" porque WPF por default no muestra tooltips
-             en botones disabled. CanUpgradeToPro = false en V1, true cuando exista flujo Pro. -->
-        <Button Style="{StaticResource SpkSecondaryButtonStyle}"
-                HorizontalAlignment="Left"
-                Content="Pasar a Pro"
-                IsEnabled="{Binding CanUpgradeToPro}"
-                ToolTip="Próximamente"
-                ToolTipService.ShowOnDisabled="True" />
+        <!-- ===== LoggedIn: identidad + plan card + actions ===== -->
+        <StackPanel Visibility="{Binding IsLoggedIn, Converter={StaticResource BoolToVis}}">
+
+            <!-- Identidad del user logueado + Logout. -->
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="SESIÓN ACTIVA"
+                               Style="{StaticResource PlanEyebrowStyle}"
+                               Margin="0,0,0,4" />
+                    <TextBlock Text="{Binding UserEmail}"
+                               Style="{StaticResource SpkTypeBodyStyle}"
+                               FontWeight="Medium" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Style="{StaticResource SpkSecondaryButtonStyle}"
+                        Content="Cerrar sesión"
+                        Command="{Binding LogoutCommand}"
+                        VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- Card del plan/tier. Una sola card que cambia contenido por tier. -->
+            <Border Background="{DynamicResource SpkBgBrandMutedBrush}"
+                    BorderBrush="{DynamicResource SpkBorderBrandSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="24"
+                    Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Viewbox Grid.Column="0"
+                             Width="24" Height="24"
+                             Margin="0,2,16,0"
+                             VerticalAlignment="Top">
+                        <Path Stroke="{DynamicResource SpkFgBrandBrush}"
+                              StrokeThickness="2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Data="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z M5 21h14" />
+                    </Viewbox>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="PLAN ACTUAL"
+                                   Style="{StaticResource PlanEyebrowStyle}"
+                                   Margin="0,0,0,4" />
+
+                        <!-- Loading: pre-fetch del entitlement. -->
+                        <TextBlock Text="Cargando…"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   Visibility="{Binding ShowLoadingDetails, Converter={StaticResource BoolToVis}}" />
+
+                        <!-- Badge: variante única, contenido viene de TierLabel. -->
+                        <Border Style="{StaticResource PlanBadgeBorderStyle}"
+                                Margin="0,0,0,12">
+                            <TextBlock Text="{Binding TierLabel}"
+                                       Style="{StaticResource PlanBadgeTextStyle}" />
+                        </Border>
+
+                        <!-- Descripción general del tier. -->
+                        <TextBlock Text="{Binding TierDescription}"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="20"
+                                   MaxWidth="440"
+                                   HorizontalAlignment="Left"
+                                   Margin="0,0,0,12" />
+
+                        <!-- Countdown del trial. -->
+                        <TextBlock Text="{Binding TrialCountdown}"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource SpkFgBrandBrush}"
+                                   Visibility="{Binding ShowTrialDetails, Converter={StaticResource BoolToVis}}" />
+
+                        <!-- Fecha de renovación Pro. -->
+                        <StackPanel Visibility="{Binding ShowProDetails, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="PRÓXIMA RENOVACIÓN"
+                                       Style="{StaticResource PlanEyebrowStyle}"
+                                       Margin="0,0,0,2" />
+                            <TextBlock Text="{Binding ProRenewsAt}"
+                                       FontFamily="{DynamicResource SpkFontGeist}"
+                                       FontSize="13"
+                                       FontWeight="Medium" />
+                        </StackPanel>
+
+                        <!-- BYOK con grace activo. -->
+                        <TextBlock Text="{Binding ByokGraceCountdown}"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource SpkStateWarningFgBrush}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding ShowByokGrace, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Manage subscription — solo Pro. -->
+            <Button Style="{StaticResource SpkSecondaryButtonStyle}"
+                    HorizontalAlignment="Left"
+                    Content="Gestionar suscripción"
+                    Command="{Binding ManageSubscriptionCommand}"
+                    Visibility="{Binding CanManageSubscription, Converter={StaticResource BoolToVis}}"
+                    Margin="0,0,0,16" />
+
+            <!-- Upgrade — Trial / Expired / BYOK. -->
+            <StackPanel Visibility="{Binding CanUpgrade, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="ELEGIR PLAN"
+                           Style="{StaticResource PlanEyebrowStyle}"
+                           Margin="0,0,0,8" />
+
+                <!-- Toggle Monthly / Yearly. RadioButton group con bindings al VM. -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                    <RadioButton GroupName="BillingInterval"
+                                 Content="Mensual ($9/mes)"
+                                 IsChecked="{Binding IsMonthlySelected, Mode=OneWay}"
+                                 Command="{Binding SelectIntervalCommand}"
+                                 CommandParameter="monthly"
+                                 Margin="0,0,16,0" />
+                    <RadioButton GroupName="BillingInterval"
+                                 Content="Anual ($79/año)"
+                                 IsChecked="{Binding IsYearlySelected, Mode=OneWay}"
+                                 Command="{Binding SelectIntervalCommand}"
+                                 CommandParameter="yearly" />
+                </StackPanel>
+
+                <Button Style="{StaticResource SpkPrimaryButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="Pasar a Pro"
+                        Command="{Binding UpgradeCommand}" />
+            </StackPanel>
+        </StackPanel>
 
     </StackPanel>
 </UserControl>
