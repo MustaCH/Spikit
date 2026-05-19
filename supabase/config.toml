@@ -382,6 +382,33 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Edge Functions config — single source of truth de verify_jwt usado por
+# `supabase functions deploy` en local y en el CI (.github/workflows/backend-deploy.yml).
+# Cuando se suma una function nueva: agregar bloque acá + sumarla al loop del workflow.
+
+[functions.entitlement]
+verify_jwt = true
+
+[functions.transcribe]
+verify_jwt = true
+
+[functions.create-checkout-session]
+verify_jwt = true
+
+# create-portal-session: verify_jwt=false porque la auth (JWT del cliente) la validamos
+# inline en la función para poder devolver missing_authorization vs invalid_jwt explícitos.
+[functions.create-portal-session]
+verify_jwt = false
+
+# stripe-webhook: auth via firma Stripe (header stripe-signature), no via JWT.
+[functions.stripe-webhook]
+verify_jwt = false
+
+# send-transition-email: callers internos. Auth inline contra SUPABASE_SERVICE_ROLE_KEY
+# (same-runtime) o INTERNAL_DISPATCH_KEY (worker pg_net externo).
+[functions.send-transition-email]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

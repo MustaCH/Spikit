@@ -1,0 +1,94 @@
+name: Backend deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      skip_db_push:
+        description: 'Saltar supabase db push (solo deploy de Edge Functions)'
+        type: boolean
+        default: false
+      skip_functions:
+        description: 'Saltar deploy de Edge Functions (solo db push)'
+        type: boolean
+        default: false
+
+# Aplica las migrations SQL pending y redepliea las Edge Functions cuando hay cambios
+# en supabase/** en main. La config de verify_jwt vive en supabase/config.toml — el
+# workflow se mantiene simple a propósito.
+#
+# Requiere los siguientes GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#  - SUPABASE_ACCESS_TOKEN  : Personal access token, Dashboard → Account → Access Tokens.
+#  - SUPABASE_PROJECT_REF   : okomqtltwshgwruwulhv (referencia del proyecto Spikit).
+#  - SUPABASE_DB_PASSWORD   : password del usuario postgres del proyecto (Dashboard → Database → Connection Strings).
+#
+# Ver docs/infra.md §Pipeline para detalle operativo + runbooks.
+
+permissions:
+  contents: read
+
+concurrency:
+  # Si entran 2 pushes en rapida sucesion, el segundo espera al primero (no se cancelan).
+  # Importante para que un `db push` no quede pisado por otro a mitad de camino.
+  group: backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Apply migrations + deploy functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify GitHub secrets are set
+        shell: bash
+        run: |
+          set -e
+          missing=()
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing+=("SUPABASE_ACCESS_TOKEN")
+          [ -n "$SUPABASE_PROJECT_REF" ]  || missing+=("SUPABASE_PROJECT_REF")
+          [ -n "$SUPABASE_DB_PASSWORD" ]  || missing+=("SUPABASE_DB_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required GitHub secrets: ${missing[*]}"
+            echo "Cargalos en Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "All required secrets present (refs masked by GitHub)."
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Apply migrations (supabase db push)
+        if: ${{ github.event.inputs.skip_db_push != 'true' }}
+        run: supabase db push
+
+      - name: Deploy Edge Functions
+        if: ${{ github.event.inputs.skip_functions != 'true' }}
+        run: |
+          # verify_jwt por function viene de supabase/config.toml.
+          # Cuando se suma una function nueva: agregarla a config.toml + sumarla acá.
+          supabase functions deploy \
+            entitlement \
+            transcribe \
+            create-checkout-session \
+            create-portal-session \
+            stripe-webhook \
+            send-transition-email \
+            --project-ref "$SUPABASE_PROJECT_REF"
