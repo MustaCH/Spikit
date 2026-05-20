@@ -79,7 +79,7 @@ public sealed class ClipboardPasteService : ITextInsertionService
         {
             try
             {
-                return ClipboardSnapshot.FromDataObject(Clipboard.GetDataObject());
+                return ClipboardSnapshot.FromDataObject(Clipboard.GetDataObject(), _logger);
             }
             catch (Exception ex)
             {
@@ -97,7 +97,15 @@ public sealed class ClipboardPasteService : ITextInsertionService
         {
             try
             {
-                Clipboard.SetDataObject(new DataObject(DataFormats.UnicodeText, text), copy: true);
+                var data = new DataObject(DataFormats.UnicodeText, text);
+                // Excluir la transcripción del Clipboard History (Win+V) y del Cloud
+                // Clipboard. Es contenido transitorio que el usuario no copió
+                // explícitamente — no debería ensuciar su historial entre lo que
+                // realmente sí copió antes y después.
+                data.SetData("ExcludeClipboardContentFromMonitorProcessing", new byte[] { 0 });
+                data.SetData("CanIncludeInClipboardHistory", new byte[] { 0, 0, 0, 0 });
+                data.SetData("CanUploadToCloudClipboard", new byte[] { 0, 0, 0, 0 });
+                Clipboard.SetDataObject(data, copy: true);
                 return true;
             }
             catch (Exception ex)
@@ -117,7 +125,10 @@ public sealed class ClipboardPasteService : ITextInsertionService
                 switch (saved.State)
                 {
                     case ClipboardSnapshot.Kind.HasContent:
-                        Clipboard.SetDataObject(saved.Data!);
+                        // copy:true persiste los datos al system clipboard manager.
+                        // Sin esto, WPF deja una referencia al DataObject que se
+                        // invalida cuando este proceso libera el clipboard.
+                        Clipboard.SetDataObject(saved.Data!, copy: true);
                         break;
                     case ClipboardSnapshot.Kind.Empty:
                         Clipboard.Clear();
