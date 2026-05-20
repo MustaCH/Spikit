@@ -24,17 +24,22 @@ namespace Spikit.Services.Velopack;
 // El parámetro `logger` resuelve los dos casos: si llega no-null, los mensajes van a
 // Serilog (caso 2); si null, fallback al archivo dedicado (caso 1, sin Serilog disponible).
 //
+// El parámetro `scheme` permite a los tests usar un namespace distinto (`spikit-test`)
+// para no contaminar el HKCU del dev. Los 3 callsites productivos lo dejan por default
+// (`DefaultScheme = "spikit"`) — cambiarlo en producción rompe deep-links viejos y
+// requiere coordinar con la página intermediaria `spikit.dev/auth-callback`.
+//
 // Decisión: HKCU (no HKLM). Velopack instala per-user en %LocalAppData%\Spikit sin pedir
 // UAC; escribir en HKLM nos forzaría a pedir elevación al instalador. La key per-user
 // es suficiente porque la app se instala por usuario.
 //
 // Spec Windows protocol handler:
-//   HKCU\Software\Classes\spikit\
+//   HKCU\Software\Classes\<scheme>\
 //     (Default)             = "URL:Spikit Protocol"
 //     URL Protocol          = ""           ← marker que Windows usa para reconocer scheme
-//   HKCU\Software\Classes\spikit\DefaultIcon\
+//   HKCU\Software\Classes\<scheme>\DefaultIcon\
 //     (Default)             = "<exe>,0"   ← primer icon del .exe (Spikit branding EP-8.2)
-//   HKCU\Software\Classes\spikit\shell\open\command\
+//   HKCU\Software\Classes\<scheme>\shell\open\command\
 //     (Default)             = "\"<exe>\" \"%1\""  ← Windows reemplaza %1 con el URI
 //
 // Smoke test manual (con la app instalada):
@@ -43,21 +48,16 @@ namespace Spikit.Services.Velopack;
 // SpikitUriDispatcher (EP-10.4 / 3.3) lo procesa.
 internal static class SpikitProtocolHandler
 {
-    // Scheme del protocol handler. Cambiarlo implica romper deep-links viejos — no tocar
-    // sin coordinar con la página intermediaria `spikit.dev/auth-callback`.
-    private const string Scheme = "spikit";
-
-    // Path completo de la key dentro de HKCU.
-    private const string RootKeyPath = @"Software\Classes\" + Scheme;
-    private const string CommandKeyPath = RootKeyPath + @"\shell\open\command";
-    private const string IconKeyPath = RootKeyPath + @"\DefaultIcon";
+    // Scheme productivo del protocol handler. Cambiarlo implica romper deep-links viejos
+    // — no tocar sin coordinar con la página intermediaria `spikit.dev/auth-callback`.
+    public const string DefaultScheme = "spikit";
 
     // Texto que Windows muestra en el diálogo "Always use this app to open spikit:// links"
     // cuando hay múltiples handlers compitiendo. En la práctica solo Spikit registra el
     // scheme, así que el usuario nunca lo ve, pero la convención de Microsoft es marcarlo.
     private const string FriendlyName = "URL:Spikit Protocol";
 
-    public static void Register(ILogger? logger = null)
+    public static void Register(ILogger? logger = null, string scheme = DefaultScheme)
     {
         var exePath = GetCurrentExecutablePath();
         if (string.IsNullOrWhiteSpace(exePath))
@@ -66,9 +66,13 @@ internal static class SpikitProtocolHandler
             return;
         }
 
+        var rootKeyPath = BuildRootKeyPath(scheme);
+        var iconKeyPath = rootKeyPath + @"\DefaultIcon";
+        var commandKeyPath = rootKeyPath + @"\shell\open\command";
+
         try
         {
-            using var root = Registry.CurrentUser.CreateSubKey(RootKeyPath, writable: true);
+            using var root = Registry.CurrentUser.CreateSubKey(rootKeyPath, writable: true);
             // (Default) value del root = friendly name. Windows lo usa como display name.
             root.SetValue(string.Empty, FriendlyName, RegistryValueKind.String);
             // El marker "URL Protocol" (value vacío) es lo que le dice a Windows que este
@@ -76,18 +80,18 @@ internal static class SpikitProtocolHandler
             // ignora la key.
             root.SetValue("URL Protocol", string.Empty, RegistryValueKind.String);
 
-            using var iconKey = Registry.CurrentUser.CreateSubKey(IconKeyPath, writable: true);
+            using var iconKey = Registry.CurrentUser.CreateSubKey(iconKeyPath, writable: true);
             // ",0" → primer icon embebido en el .exe. EP-8.2 metió el branding de Spikit
             // ahí; Windows lo muestra como icono del browser/dialog del deep-link.
             iconKey.SetValue(string.Empty, $"\"{exePath}\",0", RegistryValueKind.String);
 
-            using var commandKey = Registry.CurrentUser.CreateSubKey(CommandKeyPath, writable: true);
+            using var commandKey = Registry.CurrentUser.CreateSubKey(commandKeyPath, writable: true);
             // Comillas alrededor del path (puede tener espacios) y de %1 (la URL completa
             // puede tener `&` y otros chars que un shell interpretaría). Windows reemplaza
             // %1 con la URL exacta — `spikit://auth-callback?access_token=...`.
             commandKey.SetValue(string.Empty, $"\"{exePath}\" \"%1\"", RegistryValueKind.String);
 
-            Log(logger, LogLevel.Information, $"Register OK: {Scheme}:// → {exePath}");
+            Log(logger, LogLevel.Information, $"Register OK: {scheme}:// → {exePath}");
         }
         catch (Exception ex)
         {
@@ -101,12 +105,13 @@ internal static class SpikitProtocolHandler
         }
     }
 
-    public static void Unregister(ILogger? logger = null)
+    public static void Unregister(ILogger? logger = null, string scheme = DefaultScheme)
     {
+        var rootKeyPath = BuildRootKeyPath(scheme);
         try
         {
-            Registry.CurrentUser.DeleteSubKeyTree(RootKeyPath, throwOnMissingSubKey: false);
-            Log(logger, LogLevel.Information, $"Unregister OK: {Scheme}://");
+            Registry.CurrentUser.DeleteSubKeyTree(rootKeyPath, throwOnMissingSubKey: false);
+            Log(logger, LogLevel.Information, $"Unregister OK: {scheme}://");
         }
         catch (Exception ex)
         {
@@ -114,6 +119,13 @@ internal static class SpikitProtocolHandler
             // está a punto de borrar la carpeta de install igual).
             Log(logger, LogLevel.Warning, $"Unregister FAILED: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    private static string BuildRootKeyPath(string scheme)
+    {
+        if (string.IsNullOrWhiteSpace(scheme))
+            throw new ArgumentException("scheme no puede ser null o vacío", nameof(scheme));
+        return @"Software\Classes\" + scheme;
     }
 
     private static string? GetCurrentExecutablePath()
