@@ -1,15 +1,28 @@
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
 namespace Spikit.Services.Velopack;
 
 // EP-10.4 sub-task 3.1 — registro del protocol handler `spikit://`.
 //
-// Se invoca desde los hooks de Velopack en Program.Main (install/update/uninstall). Esos
-// hooks corren con Environment.Exit() inmediatamente después y ANTES de que Serilog esté
-// configurado, así que el logging propio va a un archivo dedicado en
-// `%AppData%\Spikit\logs\velopack-hooks.log` con File.AppendAllText (no Serilog).
+// Se invoca en dos contextos distintos:
+//
+//   1. Hooks de Velopack en Program.Main (install/update/uninstall). Esos hooks corren
+//      con Environment.Exit() inmediatamente después y ANTES de que Serilog esté
+//      configurado, así que el logging va a un archivo dedicado en
+//      `%AppData%\Spikit\logs\velopack-hooks.log` con File.AppendAllText (no Serilog).
+//
+//   2. Startup normal de la app (Program.Main, post SingleInstanceGuard). Acá Serilog ya
+//      está configurado y se pasa un ILogger explícito al método. Esto es self-healing:
+//      si el registro se perdió por cualquier motivo (cleaners, edit manual, `dotnet run`
+//      que nunca corrió el hook de Velopack), se restaura al próximo arranque.
+//      Register() es idempotente — CreateSubKey abre si existe, SetValue sobrescribe con
+//      el mismo valor (~5ms si no cambió nada).
+//
+// El parámetro `logger` resuelve los dos casos: si llega no-null, los mensajes van a
+// Serilog (caso 2); si null, fallback al archivo dedicado (caso 1, sin Serilog disponible).
 //
 // Decisión: HKCU (no HKLM). Velopack instala per-user en %LocalAppData%\Spikit sin pedir
 // UAC; escribir en HKLM nos forzaría a pedir elevación al instalador. La key per-user
@@ -44,12 +57,12 @@ internal static class SpikitProtocolHandler
     // scheme, así que el usuario nunca lo ve, pero la convención de Microsoft es marcarlo.
     private const string FriendlyName = "URL:Spikit Protocol";
 
-    public static void Register()
+    public static void Register(ILogger? logger = null)
     {
         var exePath = GetCurrentExecutablePath();
         if (string.IsNullOrWhiteSpace(exePath))
         {
-            WriteHookLog("Register skipped: no se pudo resolver el path del .exe actual.");
+            Log(logger, LogLevel.Warning, "Register skipped: no se pudo resolver el path del .exe actual.");
             return;
         }
 
@@ -74,30 +87,32 @@ internal static class SpikitProtocolHandler
             // %1 con la URL exacta — `spikit://auth-callback?access_token=...`.
             commandKey.SetValue(string.Empty, $"\"{exePath}\" \"%1\"", RegistryValueKind.String);
 
-            WriteHookLog($"Register OK: {Scheme}:// → {exePath}");
+            Log(logger, LogLevel.Information, $"Register OK: {Scheme}:// → {exePath}");
         }
         catch (Exception ex)
         {
-            // Tragamos la excepción: si la Registry falla durante install/update, no
-            // queremos crashear el flow de Velopack (que rollbackearía el install). El
-            // usuario va a poder usar la app sin login deep-link (workaround = ningún
-            // workaround todavía; EP-10.0 va a meter UI manual de login en Settings).
-            WriteHookLog($"Register FAILED: {ex.GetType().Name}: {ex.Message}");
+            // Tragamos la excepción en los 3 puntos de invocación:
+            // - Velopack install/update: crashear haría rollback del install (peor que
+            //   no tener el handler — el user al menos puede abrir la app).
+            // - Startup self-healing: no queremos romper el arranque por un permiso
+            //   raro del registry. El user puede usar la app sin login deep-link y
+            //   reintentar al siguiente arranque.
+            Log(logger, LogLevel.Error, $"Register FAILED: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
-    public static void Unregister()
+    public static void Unregister(ILogger? logger = null)
     {
         try
         {
             Registry.CurrentUser.DeleteSubKeyTree(RootKeyPath, throwOnMissingSubKey: false);
-            WriteHookLog($"Unregister OK: {Scheme}://");
+            Log(logger, LogLevel.Information, $"Unregister OK: {Scheme}://");
         }
         catch (Exception ex)
         {
             // Mismo razonamiento que Register: silenciar fallos en uninstall (Velopack
             // está a punto de borrar la carpeta de install igual).
-            WriteHookLog($"Unregister FAILED: {ex.GetType().Name}: {ex.Message}");
+            Log(logger, LogLevel.Warning, $"Unregister FAILED: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -111,12 +126,26 @@ internal static class SpikitProtocolHandler
         return string.IsNullOrWhiteSpace(path) ? null : path;
     }
 
+    // Dispatcher de logging: si hay ILogger inyectado (startup self-healing con Serilog
+    // configurado), va por ahí. Si no (FastCallbacks de Velopack, pre-Serilog), fallback
+    // a archivo dedicado en velopack-hooks.log.
+    private static void Log(ILogger? logger, LogLevel level, string message)
+    {
+        if (logger is not null)
+        {
+            logger.Log(level, "{Message}", message);
+            return;
+        }
+        WriteHookLog(message);
+    }
+
     private static void WriteHookLog(string message)
     {
-        // Logger ad-hoc: Serilog aún no está configurado (los hooks corren antes que
-        // ConfigureSerilog en Program.Main, y los FastCallbacks llaman Environment.Exit
-        // después). Escribimos a un archivo dedicado para post-mortem de instaladores
-        // problemáticos. Best-effort: si el filesystem falla, no podemos hacer nada.
+        // Logger ad-hoc para los FastCallbacks de Velopack: Serilog aún no está
+        // configurado (los hooks corren antes que ConfigureSerilog en Program.Main, y
+        // llaman Environment.Exit después). Escribimos a un archivo dedicado para
+        // post-mortem de instaladores problemáticos. Best-effort: si el filesystem falla,
+        // no podemos hacer nada.
         try
         {
             var logsDir = Path.Combine(

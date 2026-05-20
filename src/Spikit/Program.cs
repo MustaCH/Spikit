@@ -91,6 +91,16 @@ public static class Program
             return 0;
         }
 
+        // EP-10.4 follow-up — self-healing del protocol handler `spikit://`.
+        // Velopack hooks (install/update) son el camino normal, pero si el registro se
+        // perdió por un cleaner, edit manual, o un arranque desde `dotnet run` que nunca
+        // pasó por un hook de Velopack, lo restauramos acá. Register() es idempotente:
+        // si las 3 entries de HKCU\Software\Classes\spikit ya apuntan al exe actual,
+        // las SetValue son no-ops de ~5ms. Solo corre en la instancia primary (el
+        // SecondaryNotified de arriba ya retornó).
+        SpikitProtocolHandler.Register(
+            bootstrapLoggerFactory.CreateLogger("SpikitProtocolHandler"));
+
         try
         {
             var host = Host.CreateDefaultBuilder(args)
