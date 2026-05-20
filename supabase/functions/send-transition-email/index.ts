@@ -1,16 +1,17 @@
 // Edge Function: send-transition-email
 // POST /functions/v1/send-transition-email
-//   Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+//   Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY | INTERNAL_DISPATCH_KEY>
 //   Content-Type: application/json
 //   Body: { "template": "<templateId>", "user_id"?: "<uuid>", "to_email"?: "<email>", "vars"?: {...} }
 //
-// Endpoint interno (no expuesto al cliente desktop). Cualquier caller con
-// el service-role JWT puede pedir el envio de un email transaccional.
-//
-// Auth model: validamos que Authorization sea EXACTAMENTE `Bearer <SERVICE_ROLE_KEY>`
-// — el service_role key actua como shared secret entre el backend (cron, triggers
-// PG via pg_net, stripe-webhook si lo usara via HTTP) y esta funcion. No es un
-// JWT de auth de usuario.
+// Endpoint interno (no expuesto al cliente desktop). Acepta dos secrets:
+//  - SUPABASE_SERVICE_ROLE_KEY: callers same-runtime (entitlement v6 welcome,
+//    stripe-webhook payment_failed/canceled). Ya tienen acceso al service_role
+//    via Deno.env, lo reusan directo.
+//  - INTERNAL_DISPATCH_KEY: callers externos via HTTP, p.ej. el worker pg_net
+//    (_dispatch_outbox_batch). El service_role NO debe exponerse a Postgres /
+//    Vault — el INTERNAL_DISPATCH_KEY es un random base64 dedicado para ese
+//    caller. Sincronizado contra vault.email_dispatch_token.
 //
 // Resolucion del destinatario:
 //  - Templates con recipient='to_internal' van siempre a hello@spikit.dev
@@ -30,6 +31,7 @@ import { TEMPLATES, type EmailTemplateId } from '../_shared/email/templates.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const INTERNAL_DISPATCH_KEY = Deno.env.get('INTERNAL_DISPATCH_KEY');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -41,9 +43,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== 'POST') return jsonResp({ error: 'method_not_allowed' }, 405);
 
-  // Internal-only auth: must match the service-role key exactly.
+  // Internal-only auth: accept either SERVICE_ROLE_KEY (same-runtime) or
+  // INTERNAL_DISPATCH_KEY (external callers like the pg_net worker).
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader || authHeader !== `Bearer ${SERVICE_ROLE_KEY}`) {
+  const matchesServiceRole = authHeader === `Bearer ${SERVICE_ROLE_KEY}`;
+  const matchesInternalDispatch =
+    !!INTERNAL_DISPATCH_KEY && authHeader === `Bearer ${INTERNAL_DISPATCH_KEY}`;
+  if (!authHeader || (!matchesServiceRole && !matchesInternalDispatch)) {
     return jsonResp({ error: 'unauthorized' }, 401);
   }
 
