@@ -303,6 +303,63 @@
         </Setter>
     </Style>
 
+    <!-- RadioButton del design system. Usado en Settings → Plan (toggle Monthly/Yearly).
+         Outer circle outlined + inner dot brand que aparece animado en IsChecked.
+         Foreground = primary (legible sobre dark + light), hand cursor coherente con
+         otros controles interactivos del form. -->
+    <Style x:Key="SpkRadioButtonStyle" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="8,0,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="18" Height="18" VerticalAlignment="Center">
+                            <Ellipse x:Name="OuterEllipse"
+                                     Stroke="{DynamicResource SpkBorderDefaultBrush}"
+                                     StrokeThickness="1.5"
+                                     Fill="Transparent" />
+                            <Ellipse x:Name="InnerDot"
+                                     Width="8" Height="8"
+                                     Fill="{DynamicResource SpkBgBrandSolidBrush}"
+                                     Opacity="0" />
+                        </Grid>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                          TextElement.FontSize="{TemplateBinding FontSize}" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="OuterEllipse" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                            <Setter TargetName="InnerDot" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="OuterEllipse" Property="Stroke" Value="{DynamicResource SpkBorderStrongBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="OuterEllipse" Property="Stroke" Value="{DynamicResource SpkBgBrandSolidBrush}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Botón ojo (toggle visibility de API key) inline a la derecha del input. -->
     <Style x:Key="SpkEyeToggleStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />

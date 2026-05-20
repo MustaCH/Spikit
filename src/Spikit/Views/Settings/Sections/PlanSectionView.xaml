@@ -7,6 +7,8 @@
              Background="Transparent">
 
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
         <Style x:Key="PlanEyebrowStyle" TargetType="TextBlock" BasedOn="{StaticResource SpkTypeCaptionStyle}">
             <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}" />
             <Setter Property="FontWeight" Value="Medium" />
@@ -222,13 +224,15 @@
 
                 <!-- Toggle Monthly / Yearly. RadioButton group con bindings al VM. -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                    <RadioButton GroupName="BillingInterval"
+                    <RadioButton Style="{StaticResource SpkRadioButtonStyle}"
+                                 GroupName="BillingInterval"
                                  Content="Mensual ($9/mes)"
                                  IsChecked="{Binding IsMonthlySelected, Mode=OneWay}"
                                  Command="{Binding SelectIntervalCommand}"
                                  CommandParameter="monthly"
-                                 Margin="0,0,16,0" />
-                    <RadioButton GroupName="BillingInterval"
+                                 Margin="0,0,24,0" />
+                    <RadioButton Style="{StaticResource SpkRadioButtonStyle}"
+                                 GroupName="BillingInterval"
                                  Content="Anual ($79/año)"
                                  IsChecked="{Binding IsYearlySelected, Mode=OneWay}"
                                  Command="{Binding SelectIntervalCommand}"

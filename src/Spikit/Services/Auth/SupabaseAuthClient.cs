@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +29,7 @@ public sealed class SupabaseAuthClient : ISupabaseAuthClient
     private readonly TimeProvider _time;
     private readonly ILogger<SupabaseAuthClient> _logger;
 
+    [ActivatorUtilitiesConstructor]
     public SupabaseAuthClient(
         HttpClient http,
         IOptions<SupabaseOptions> options,
