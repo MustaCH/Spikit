@@ -391,7 +391,12 @@ public abstract class ProviderFormViewModelBase : ViewModelBase
         if (_isApplyingPreset || _selectedPreset == ProviderPreset.Custom) return;
 
         var current = ProviderPresetDefaults.For(_selectedPreset);
-        if (_baseUrl == current.BaseUrl && _model == current.Model) return;
+        // El preset se "rompe" a Custom solo si el user tocó la BaseUrl (cualquier cambio te
+        // saca del preset) o si el Model dejó de estar en el catálogo canónico (AvailableModels).
+        // Cambiar de whisper-1 → gpt-4o-transcribe dentro de OpenAI NO debe degradar: ambos son
+        // modelos válidos del preset OpenAI. Antes comparábamos contra `current.Model` (solo el
+        // default), lo que rompía el cambio de modelo a cualquier opción ≠ default.
+        if (_baseUrl == current.BaseUrl && current.AvailableModels.Contains(_model)) return;
 
         SelectPreset(ProviderPreset.Custom, clearFieldsForCustom: false);
     }

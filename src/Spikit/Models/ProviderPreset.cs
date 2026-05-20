@@ -22,8 +22,14 @@ public sealed record ProviderPresetDefaults(string BaseUrl, string Model, Immuta
     public static ProviderPresetDefaults For(ProviderPreset preset) => preset switch
     {
         ProviderPreset.OpenAI => new ProviderPresetDefaults(
+            // Default cambiado de `whisper-1` a `gpt-4o-transcribe` el 2026-05-20:
+            // mismo precio ($0.006/min), WER significativamente mejor segun OpenAI
+            // (oct-2024) y benchmark FLEURS. `whisper-1` queda disponible en el
+            // dropdown como fallback seguro si aparece regresion. Aplica solo a
+            // nuevos installs / "Restablecer defaults" del preset — usuarios BYOK
+            // con `whisper-1` ya persistido en settings.json mantienen su eleccion.
             BaseUrl: "https://api.openai.com/v1",
-            Model: "whisper-1",
+            Model: "gpt-4o-transcribe",
             AvailableModels: ImmutableArray.Create("whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe")),
 
         ProviderPreset.Groq => new ProviderPresetDefaults(

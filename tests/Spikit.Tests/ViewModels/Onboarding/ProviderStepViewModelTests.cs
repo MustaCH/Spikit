@@ -26,7 +26,7 @@ public class ProviderStepViewModelTests
 
         Assert.Equal(ProviderPreset.OpenAI, vm.SelectedPreset);
         Assert.Equal("https://api.openai.com/v1", vm.BaseUrl);
-        Assert.Equal("whisper-1", vm.Model);
+        Assert.Equal("gpt-4o-transcribe", vm.Model);
         Assert.Equal(string.Empty, vm.ApiKey);
         Assert.Equal(ProviderConnectionStatus.Idle, vm.ConnectionStatus);
     }
@@ -316,7 +316,7 @@ public class ProviderStepViewModelTests
         Assert.NotNull(writer.LastConfig);
         Assert.Equal("openai", writer.LastConfig!.PresetId);
         Assert.Equal("https://api.openai.com/v1", writer.LastConfig.BaseUrl);
-        Assert.Equal("whisper-1", writer.LastConfig.Model);
+        Assert.Equal("gpt-4o-transcribe", writer.LastConfig.Model);
         Assert.Equal(ValidApiKey, writer.LastConfig.ApiKey);
     }
 

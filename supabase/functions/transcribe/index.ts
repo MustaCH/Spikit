@@ -22,7 +22,16 @@ const ABUSE_ALERT_FROM = Deno.env.get('ABUSE_ALERT_FROM') ?? 'alerts@spikit.dev'
 
 const SOFT_CAP_MIN = 500;
 const OPENAI_URL = 'https://api.openai.com/v1/audio/transcriptions';
-const WHISPER_MODEL = 'whisper-1';
+// Modelo de transcripcion para usuarios Trial/Pro. Cambiado de 'whisper-1' a
+// 'gpt-4o-transcribe' (2026-05-20) — mismo endpoint, mismo precio ($0.006/min),
+// WER significativamente mejor segun model card de OpenAI (oct-2024) y benchmark
+// FLEURS. Mejor handling de acentos, code-switching es-en y vocabulario tecnico,
+// que son los casos dominantes en el target de Spikit (devs argentinos).
+// Si aparece regresion en produccion, revertir a 'whisper-1' es seguro (BYOK
+// sigue exponiendo ambos modelos en el dropdown de Settings → Provider).
+// Nombre de la constante queda como WHISPER_MODEL por legacy del codigo;
+// renombrar a TRANSCRIPTION_MODEL es mejora cosmetica para sprint normal.
+const WHISPER_MODEL = 'gpt-4o-transcribe';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
