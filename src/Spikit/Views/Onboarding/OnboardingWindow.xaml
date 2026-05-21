@@ -398,7 +398,11 @@
                         </TextBlock>
                     </Grid>
 
-                    <Border Margin="8,0">
+                    <!-- Línea 2→3 + Step 3 — colapsados en Trial/Pro (EP-11.5). El StackPanel
+                         re-centra automáticamente cuando los hijos colapsan, no hace falta
+                         re-layout manual. -->
+                    <Border Margin="8,0"
+                            Visibility="{Binding IsLine23Visible, Converter={StaticResource BoolToVis}}">
                         <Border.Style>
                             <Style TargetType="Border" BasedOn="{StaticResource StepLineStyle}">
                                 <Style.Triggers>
@@ -410,8 +414,8 @@
                         </Border.Style>
                     </Border>
 
-                    <!-- Step 3 (Prueba) -->
-                    <Grid>
+                    <!-- Step 3 (Prueba) — visible solo en BYOK. -->
+                    <Grid Visibility="{Binding IsStep3Visible, Converter={StaticResource BoolToVis}}">
                         <Border>
                             <Border.Style>
                                 <Style TargetType="Border" BasedOn="{StaticResource StepCircleStyle}">

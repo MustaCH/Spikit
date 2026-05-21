@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Spikit.Services.Auth;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Settings;
 
@@ -7,14 +8,18 @@ namespace Spikit.ViewModels.Onboarding;
 
 // Coordina el wizard de onboarding. Mantiene el paso activo y expone:
 // - Flags de visibilidad por paso para que el ContentControl muestre el UserControl correcto.
-// - Estado del stepper (●━━○━━○) por cada uno de los 3 pasos numerados.
+// - Estado del stepper (●━━○━━○) por cada uno de los pasos numerados (2 o 3 según tier).
 // - Visibilidad de los botones de footer (Atrás / Saltar / Siguiente / Empezar / Finalizar).
 //
-// Esta es la SHELL (sub-task EP-3.1). Las validaciones reales por paso (Provider conectado,
-// Hotkey registrada, Prueba con texto) se cablean en EP-3.2..EP-3.7 vía CanGoNext = true.
+// EP-11.5 — bifurcación por tier (ADR-0008 / design-system §10.13):
+//   - BYOK              → Welcome → Provider → Hotkey → Prueba → Completed (3 steps)
+//   - Trial / Pro       → Welcome → Hotkey → Prueba → Completed             (2 steps, sin Provider)
 //
-// Cuando esos sub-tasks aterricen, deberían reemplazar `CanGoNext => true` por una lectura
-// del estado de cada step VM.
+// El tier se snapshot-ea al construir el VM desde IAuthService.CurrentEntitlement.
+// Si tier es null al construir (entitlement no cargado por race con auth init), default a BYOK
+// — incluye el Provider step que es la opción más conservadora (peor caso: un Trial/Pro
+// pasaría por una pantalla de provider, pero el gate de auth de EP-11.4 garantiza que
+// el entitlement esté cargado antes de mostrar este wizard en el 99% de los casos).
 public sealed class OnboardingViewModel : ViewModelBase
 {
     private readonly ILogger<OnboardingViewModel> _logger;
@@ -24,6 +29,7 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     private readonly IOnboardingCompletionStore _completionStore;
     private readonly ISettingsService _settingsService;
+    private readonly OnboardingTierVariant _tierVariant;
 
     public OnboardingViewModel(
         ILogger<OnboardingViewModel> logger,
@@ -31,7 +37,8 @@ public sealed class OnboardingViewModel : ViewModelBase
         HotkeyStepViewModel hotkey,
         PruebaStepViewModel prueba,
         IOnboardingCompletionStore completionStore,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        IAuthService authService)
     {
         _logger = logger;
         _completionStore = completionStore;
@@ -39,6 +46,14 @@ public sealed class OnboardingViewModel : ViewModelBase
         Provider = provider;
         Hotkey = hotkey;
         Prueba = prueba;
+
+        // EP-11.5 — snapshot del tier al construir. La decisión queda fija para todo el
+        // wizard; si el tier muta mid-flow (caso edge: webhook Stripe), el wizard sigue
+        // con la variante original (decisión documentada en design-system §10.13).
+        _tierVariant = ResolveTierVariant(authService);
+        _logger.LogInformation(
+            "Onboarding bifurcation: tier={Tier} → variant={Variant}",
+            authService.CurrentEntitlement?.Tier, _tierVariant);
 
         // Hidratamos el flag desde settings: si el usuario reabre el onboarding tras
         // haber tocado el toggle en una sesión anterior (que cerró sin apretar Empezar),
@@ -57,6 +72,19 @@ public sealed class OnboardingViewModel : ViewModelBase
         SkipCommand = new RelayCommand(Skip, () => IsSkipVisible);
         FinishCommand = new RelayCommand(Finish);
     }
+
+    private static OnboardingTierVariant ResolveTierVariant(IAuthService authService) =>
+        authService.CurrentEntitlement?.Tier switch
+        {
+            Tier.Trial => OnboardingTierVariant.Trial,
+            Tier.Pro => OnboardingTierVariant.Pro,
+            Tier.Byok => OnboardingTierVariant.Byok,
+            // Cualquier otro tier (Expired) o null → BYOK como default seguro. En el flow
+            // real de EP-11.4, el LoginWindow garantiza que el entitlement esté cargado
+            // antes de transicionar al wizard, así que este path solo se da en tests o
+            // en el edge case "fetch entitlement falló post-success" (raro).
+            _ => OnboardingTierVariant.Byok,
+        };
 
     // VMs por paso, expuestos como propiedades para que cada UserControl haga
     // DataContext="{Binding Provider}" / {Binding Hotkey} / {Binding Prueba} en OnboardingWindow.
@@ -129,14 +157,62 @@ public sealed class OnboardingViewModel : ViewModelBase
         }
     }
 
-    // Flags de visibilidad por paso (consumidos via BooleanToVisibilityConverter en XAML).
+    // ===== Tier variant (EP-11.5) =====
+
+    public OnboardingTierVariant TierVariant => _tierVariant;
+    public bool IsByokVariant => _tierVariant == OnboardingTierVariant.Byok;
+    public bool IsTrialVariant => _tierVariant == OnboardingTierVariant.Trial;
+    public bool IsProVariant => _tierVariant == OnboardingTierVariant.Pro;
+
+    // ===== Welcome copy bifurcado por tier (consumido por bindings del WelcomeStepView) =====
+
+    public string WelcomeH1 => _tierVariant switch
+    {
+        OnboardingTierVariant.Pro => "Gracias por pasarte a Pro 🚀",
+        // Trial y Byok comparten el h1 genérico; lo que cambia es el sub-h tier-specific.
+        _ => "Bienvenido a Spikit",
+    };
+
+    // Sub-h tier-specific (sobre la lista de pasos). Pro no usa sub-h — el h1 ya dice todo.
+    public string WelcomeTierMessage => _tierVariant switch
+    {
+        OnboardingTierVariant.Byok => "Tu acceso BYOK es de por vida.",
+        OnboardingTierVariant.Trial => "Tenés 14 días para probarlo todo. Sin tarjeta, sin trabas.",
+        _ => string.Empty,
+    };
+
+    public bool WelcomeTierMessageVisible => !string.IsNullOrEmpty(WelcomeTierMessage);
+
+    // Intro a la lista de pasos. N varía por tier.
+    public string WelcomeIntro => IsByokVariant
+        ? "Vamos a configurarlo en 3 pasos rápidos."
+        : "Vamos a configurarlo en 2 pasos rápidos.";
+
+    // Items de la lista numerada del Welcome. Si IsByokVariant=false, Step1Text es Hotkey
+    // (no Provider) y Step3 no se muestra.
+    public string WelcomeStep1Text => IsByokVariant
+        ? "Conectá tu API key"
+        : "Elegí tu hotkey";
+    public string WelcomeStep2Text => IsByokVariant
+        ? "Elegí tu hotkey"
+        : "Probalo";
+    public string WelcomeStep3Text => "Probalo"; // solo se muestra en BYOK
+    public bool WelcomeStep3Visible => IsByokVariant;
+
+    // Caption tiempo. BYOK pide ~2 min (Provider requiere ingresar key); Trial/Pro ~1 min.
+    public string WelcomeTimeText => IsByokVariant
+        ? "¿Ya configurás API keys? Esto te lleva ~2 min."
+        : "Esto te lleva ~1 minuto.";
+
+    // ===== Flags de visibilidad por step =====
+
     public bool IsWelcomeStep => CurrentStep == OnboardingStep.Welcome;
     public bool IsProviderStep => CurrentStep == OnboardingStep.Provider;
     public bool IsHotkeyStep => CurrentStep == OnboardingStep.Hotkey;
     public bool IsPruebaStep => CurrentStep == OnboardingStep.Prueba;
     public bool IsCompletedStep => CurrentStep == OnboardingStep.Completed;
 
-    // Stepper: visible solo en los 3 pasos numerados (no en Welcome ni en Completed).
+    // Stepper: visible solo en los pasos numerados (no en Welcome ni en Completed).
     public bool IsStepperVisible => CurrentStep != OnboardingStep.Welcome
                                     && CurrentStep != OnboardingStep.Completed;
 
@@ -144,28 +220,55 @@ public sealed class OnboardingViewModel : ViewModelBase
     // del UserControl). En Welcome/Provider/Hotkey/Prueba sigue visible con sus botones.
     public bool IsFooterVisible => CurrentStep != OnboardingStep.Completed;
 
-    // Por step del stepper:
-    //   Done = el step ya quedó atrás (círculo brand sólido + check).
-    //   Current = es el step actual (círculo brand sólido sin check).
-    //   Upcoming (else) = todavía no llegamos (círculo border default).
-    public bool IsStep1Done => (int)CurrentStep > (int)OnboardingStep.Provider;
-    public bool IsStep1Current => CurrentStep == OnboardingStep.Provider;
+    // ===== Stepper visual =====
+    //
+    // Step1/Step2/Step3 representan POSICIONES del stepper visual, no OnboardingStep
+    // específicos. El mapping cambia por variante:
+    //
+    //   BYOK:        Step1=Provider, Step2=Hotkey, Step3=Prueba  (3 círculos visibles)
+    //   Trial/Pro:   Step1=Hotkey,   Step2=Prueba, Step3=oculto  (2 círculos visibles)
+    //
+    // Done = el step ya quedó atrás (círculo brand sólido + check).
+    // Current = es el step actual (círculo brand sólido sin check).
+    // Upcoming (else) = todavía no llegamos (círculo border default).
 
-    public bool IsStep2Done => (int)CurrentStep > (int)OnboardingStep.Hotkey;
-    public bool IsStep2Current => CurrentStep == OnboardingStep.Hotkey;
+    public bool IsStep1Done => IsByokVariant
+        ? (int)CurrentStep > (int)OnboardingStep.Provider
+        : (int)CurrentStep > (int)OnboardingStep.Hotkey;
+    public bool IsStep1Current => IsByokVariant
+        ? CurrentStep == OnboardingStep.Provider
+        : CurrentStep == OnboardingStep.Hotkey;
 
-    public bool IsStep3Done => false; // Step 3 (Prueba) nunca está "done" mientras estás en el wizard.
-    public bool IsStep3Current => CurrentStep == OnboardingStep.Prueba;
+    public bool IsStep2Done => IsByokVariant
+        ? (int)CurrentStep > (int)OnboardingStep.Hotkey
+        : false; // En Trial/Pro Step2 es Prueba (último), nunca "done" durante el wizard.
+    public bool IsStep2Current => IsByokVariant
+        ? CurrentStep == OnboardingStep.Hotkey
+        : CurrentStep == OnboardingStep.Prueba;
 
-    // Línea entre stepper 1→2 verde si ya pasamos el paso 1 (estamos en 2 o más).
-    public bool IsLine12Active => (int)CurrentStep >= (int)OnboardingStep.Hotkey;
-    public bool IsLine23Active => (int)CurrentStep >= (int)OnboardingStep.Prueba;
+    // Step3 solo existe en BYOK (Prueba). En Trial/Pro se colapsa el círculo + la línea 2→3.
+    public bool IsStep3Done => false; // Step3 (Prueba) nunca está "done" mientras estás en el wizard.
+    public bool IsStep3Current => IsByokVariant && CurrentStep == OnboardingStep.Prueba;
+    public bool IsStep3Visible => IsByokVariant;
 
-    public string StepperLabel => CurrentStep switch
+    // Línea 1→2 activa si pasamos el primer step. Mapping por variante:
+    //   BYOK: activa si CurrentStep >= Hotkey
+    //   Trial/Pro: activa si CurrentStep >= Prueba
+    public bool IsLine12Active => IsByokVariant
+        ? (int)CurrentStep >= (int)OnboardingStep.Hotkey
+        : (int)CurrentStep >= (int)OnboardingStep.Prueba;
+    // Línea 2→3 solo aplica en BYOK.
+    public bool IsLine23Active => IsByokVariant && (int)CurrentStep >= (int)OnboardingStep.Prueba;
+    public bool IsLine23Visible => IsByokVariant;
+
+    // Label "Paso N de M". Denominador 3 (BYOK) o 2 (Trial/Pro).
+    public string StepperLabel => (CurrentStep, IsByokVariant) switch
     {
-        OnboardingStep.Provider => "Paso 1 de 3",
-        OnboardingStep.Hotkey => "Paso 2 de 3",
-        OnboardingStep.Prueba => "Paso 3 de 3",
+        (OnboardingStep.Provider, true) => "Paso 1 de 3",
+        (OnboardingStep.Hotkey, true) => "Paso 2 de 3",
+        (OnboardingStep.Prueba, true) => "Paso 3 de 3",
+        (OnboardingStep.Hotkey, false) => "Paso 1 de 2",
+        (OnboardingStep.Prueba, false) => "Paso 2 de 2",
         _ => string.Empty,
     };
 
@@ -239,6 +342,16 @@ public sealed class OnboardingViewModel : ViewModelBase
             return;
         }
 
+        // EP-11.5 — desde Welcome el siguiente step depende del tier:
+        //   BYOK → Provider (paso 1)
+        //   Trial/Pro → Hotkey (paso 1, saltea Provider)
+        if (CurrentStep == OnboardingStep.Welcome)
+        {
+            CurrentStep = IsByokVariant ? OnboardingStep.Provider : OnboardingStep.Hotkey;
+            _logger.LogDebug("Onboarding → {Step} (variant={Variant})", CurrentStep, _tierVariant);
+            return;
+        }
+
         CurrentStep = CurrentStep + 1;
         _logger.LogDebug("Onboarding → {Step}", CurrentStep);
     }
@@ -297,6 +410,17 @@ public sealed class OnboardingViewModel : ViewModelBase
     private void GoBack()
     {
         if (!CanGoBack) return;
+
+        // EP-11.5 — desde Hotkey, retroceder a Welcome en Trial/Pro (no hay Provider).
+        // En BYOK retrocede a Provider (paso 1).
+        if (CurrentStep == OnboardingStep.Hotkey && !IsByokVariant)
+        {
+            CurrentStep = OnboardingStep.Welcome;
+            _logger.LogDebug("Onboarding ← {Step} (skip Provider en variant={Variant})",
+                CurrentStep, _tierVariant);
+            return;
+        }
+
         CurrentStep = CurrentStep - 1;
         _logger.LogDebug("Onboarding ← {Step}", CurrentStep);
     }
@@ -367,5 +491,8 @@ public sealed class OnboardingViewModel : ViewModelBase
         OnPropertyChanged(nameof(NextButtonLabel));
         OnPropertyChanged(nameof(CanGoNext));
         OnPropertyChanged(nameof(CanGoBack));
+        // IsStep3Visible / IsLine23Visible no cambian con CurrentStep (dependen solo
+        // del tier, snapshot al ctor), pero se notifican igual por si algún DataTrigger
+        // del XAML las usa con StringFormat/IValueConverter que rebindee on-change.
     }
 }

@@ -5,10 +5,18 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Background="Transparent">
-    <!-- Pantalla 1.0 Welcome — preludio sin stepper. flows.md FLOW 1 + design-system §11.1.
+    <!-- Pantalla 1.0 Welcome — preludio sin stepper. flows.md FLOW 1 + design-system §10.13 / §11.1.
          Tipografía display + lista numerada + CTA primaria centrada (esta última vive en el footer
-         del OnboardingWindow). -->
+         del OnboardingWindow).
+
+         EP-11.5 — todo el copy (h1, sub-h, lista, tiempo) es bindable al OnboardingViewModel
+         para que el wizard se bifurque por tier sin duplicar UserControls:
+           - BYOK         → "Bienvenido a Spikit" + "Tu acceso BYOK es de por vida." + 3 pasos + ~2 min
+           - Trial        → "Bienvenido a Spikit" + "Tenés 14 días sin tarjeta, sin trabas." + 2 pasos + ~1 min
+           - Pro          → "Gracias por pasarte a Pro 🚀" (sin sub-h) + 2 pasos + ~1 min -->
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
         <!-- Pulse sutil del logo: respira ligeramente para que la pantalla no quede totalmente estática. -->
         <Storyboard x:Key="LogoPulse" RepeatBehavior="Forever" AutoReverse="True">
             <DoubleAnimation Storyboard.TargetName="LogoScale"
@@ -85,47 +93,65 @@
             </Image.RenderTransform>
         </Image>
 
+        <!-- H1 — varía por tier: "Bienvenido a Spikit" (BYOK/Trial) | "Gracias por pasarte a Pro 🚀" (Pro). -->
         <TextBlock Grid.Row="1"
-                   Text="Bienvenido a Spikit"
+                   Text="{Binding WelcomeH1}"
                    Style="{StaticResource SpkTypeDisplayStyle}"
                    HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
                    Margin="0,0,0,12"/>
 
         <StackPanel Grid.Row="2" Margin="0,0,0,28">
-            <TextBlock Text="Vamos a configurarlo en 3 pasos rápidos."
-                       Style="{StaticResource SpkTypeBodyLgStyle}"
-                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                       HorizontalAlignment="Center"/>
-            <TextBlock Text="No vas a poder dictar hasta terminar."
+            <!-- Sub-h tier-specific (collapsed en Pro). -->
+            <TextBlock Text="{Binding WelcomeTierMessage}"
                        Style="{StaticResource SpkTypeBodyLgStyle}"
                        Foreground="{DynamicResource SpkFgSecondaryBrush}"
                        HorizontalAlignment="Center"
-                       Margin="0,2,0,20"/>
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="400"
+                       Margin="0,0,0,12"
+                       Visibility="{Binding WelcomeTierMessageVisible, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- Intro a la lista — "2 pasos rápidos" o "3 pasos rápidos" según variante. -->
+            <TextBlock Text="{Binding WelcomeIntro}"
+                       Style="{StaticResource SpkTypeBodyLgStyle}"
+                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,20"/>
 
             <StackPanel HorizontalAlignment="Center">
                 <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
                            Foreground="{DynamicResource SpkFgPrimaryBrush}"
                            Margin="0,0,0,6">
                     <Run Text="1." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
-                    <Run Text="  Conectá tu API key (BYOK)"/>
+                    <Run Text="  "/>
+                    <Run Text="{Binding WelcomeStep1Text}"/>
                 </TextBlock>
                 <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
                            Foreground="{DynamicResource SpkFgPrimaryBrush}"
                            Margin="0,0,0,6">
                     <Run Text="2." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
-                    <Run Text="  Elegí tu hotkey"/>
+                    <Run Text="  "/>
+                    <Run Text="{Binding WelcomeStep2Text}"/>
                 </TextBlock>
+                <!-- Step 3 solo visible en BYOK. -->
                 <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}">
+                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                           Visibility="{Binding WelcomeStep3Visible, Converter={StaticResource BoolToVis}}">
                     <Run Text="3." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
-                    <Run Text="  Probalo"/>
+                    <Run Text="  "/>
+                    <Run Text="{Binding WelcomeStep3Text}"/>
                 </TextBlock>
             </StackPanel>
         </StackPanel>
 
+        <!-- Caption de tiempo — "~2 min" (BYOK) o "~1 minuto" (Trial/Pro). -->
         <TextBlock Grid.Row="3"
-                   Text="¿Ya configurás API keys? Esto te lleva ~2 min."
+                   Text="{Binding WelcomeTimeText}"
                    Style="{StaticResource SpkTypeCaptionStyle}"
-                   HorizontalAlignment="Center"/>
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"/>
     </Grid>
 </UserControl>
