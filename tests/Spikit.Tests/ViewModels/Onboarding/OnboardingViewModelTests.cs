@@ -240,6 +240,8 @@ public class OnboardingViewModelTests
         public AuthSessionState State => AuthSessionState.LoggedIn;
         public UserProfile? CurrentProfile { get; } = new("user-1", "test@spikit.dev");
         public Entitlement? CurrentEntitlement => _entitlement;
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
         public event EventHandler? StateChanged { add { } remove { } }
         public event EventHandler<string>? AuthPendingReceived { add { } remove { } }
 

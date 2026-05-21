@@ -381,6 +381,46 @@ public class DictationOrchestratorTests
         _audio.Verify(a => a.StopAsync(), Times.Never);
     }
 
+    // ===== EP-11.7 — CancelActiveSessionAsync (consumido por ISessionLifecycleService) =====
+
+    [Fact]
+    public async Task CancelActiveSessionAsync_when_Idle_is_no_op()
+    {
+        var orchestrator = BuildAndStart();
+
+        await orchestrator.CancelActiveSessionAsync();
+
+        Assert.Equal(DictationState.Idle, orchestrator.State);
+        _audio.Verify(a => a.StopAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelActiveSessionAsync_during_Recording_returns_to_Idle_and_discards_audio()
+    {
+        // Mismo path interno que el cancel-via-Esc — para el lifecycle service (logout
+        // mientras hay sesión activa) el comportamiento debe ser idéntico.
+        var startAsyncBlocked = new TaskCompletionSource();
+        _audio.Setup(a => a.StartAsync(It.IsAny<CancellationToken>()))
+            .Returns(async (CancellationToken ct) =>
+            {
+                startAsyncBlocked.TrySetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+            });
+        _audio.Setup(a => a.StopAsync()).Returns(Task.CompletedTask);
+
+        var orchestrator = BuildAndStart();
+        RaiseHotkeyPressed();
+
+        await startAsyncBlocked.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(DictationState.Recording, orchestrator.State);
+
+        await orchestrator.CancelActiveSessionAsync();
+        await WaitForState(orchestrator, DictationState.Idle);
+
+        _audio.Verify(a => a.StopAsync(), Times.AtLeastOnce);
+        _transcription.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     // ===== EP-5.2 — Esc cancela en initializing / recording / transcribing (no en inserting) =====
 
     [Fact]
@@ -923,6 +963,8 @@ public class DictationOrchestratorTests
         public AuthSessionState State { get; set; } = AuthSessionState.LoggedOut;
         public UserProfile? CurrentProfile { get; set; }
         public Entitlement? CurrentEntitlement { get; set; }
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
         public event EventHandler? StateChanged
         {
             add { }

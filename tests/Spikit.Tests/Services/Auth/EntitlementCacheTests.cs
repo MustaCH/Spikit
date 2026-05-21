@@ -86,6 +86,38 @@ public class EntitlementCacheTests
         Assert.Null(cache.ReadStale());
     }
 
+    // EP-11.8 — ReadStaleWithin: el caller decide el umbral de edad. ──────────────
+
+    [Fact]
+    public void ReadStaleWithin_returns_value_when_age_below_limit()
+    {
+        var cache = BuildCache(TimeSpan.FromHours(1));
+        cache.Write(SampleTrial());
+        _time.Advance(TimeSpan.FromDays(3));
+
+        // El TTL hardcoded (1h) ya pasó hace mucho, pero ReadStaleWithin(7d) toma
+        // su propio umbral. Para el fallback offline EP-11.8 usamos 7d.
+        var fallback = cache.ReadStaleWithin(TimeSpan.FromDays(7));
+        Assert.NotNull(fallback);
+    }
+
+    [Fact]
+    public void ReadStaleWithin_returns_null_when_age_above_limit()
+    {
+        var cache = BuildCache();
+        cache.Write(SampleTrial());
+        _time.Advance(TimeSpan.FromDays(8));
+
+        var fallback = cache.ReadStaleWithin(TimeSpan.FromDays(7));
+        Assert.Null(fallback);
+    }
+
+    [Fact]
+    public void ReadStaleWithin_returns_null_when_no_entry()
+    {
+        Assert.Null(BuildCache().ReadStaleWithin(TimeSpan.FromDays(7)));
+    }
+
     [Fact]
     public void Write_updates_the_cachedAt_timestamp()
     {

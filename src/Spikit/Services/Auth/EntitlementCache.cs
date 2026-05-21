@@ -48,6 +48,16 @@ public sealed class EntitlementCache : IEntitlementCache
 
     public Entitlement? ReadStale() => ReadEnvelope()?.Entitlement;
 
+    public Entitlement? ReadStaleWithin(TimeSpan maxAge)
+    {
+        var envelope = ReadEnvelope();
+        if (envelope is null) return null;
+
+        var age = _time.GetUtcNow() - envelope.CachedAt;
+        if (age >= maxAge) return null;
+        return envelope.Entitlement;
+    }
+
     public void Write(Entitlement entitlement)
     {
         ArgumentNullException.ThrowIfNull(entitlement);

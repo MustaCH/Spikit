@@ -19,6 +19,12 @@ public interface IEntitlementCache
     // "última vez que sabíamos que tenías Pro" cuando el backend está caído.
     Entitlement? ReadStale();
 
+    // EP-11.8 — devuelve la entrada cacheada si su `CachedAt` está dentro del límite
+    // `maxAge` (vs ahora). Distinto de ReadFresh (TTL hardcoded 24h): el caller decide
+    // qué tan vieja tolera. Usado por el AuthService para el fallback offline (hasta
+    // 7 días post-último refresh exitoso).
+    Entitlement? ReadStaleWithin(TimeSpan maxAge);
+
     // Sobrescribe el cache con el snapshot fresco + timestamp `now`.
     void Write(Entitlement entitlement);
 

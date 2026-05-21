@@ -210,6 +210,8 @@ public class SpikitUriDispatcherTests
         public AuthSessionState State => AuthSessionState.LoggedOut;
         public UserProfile? CurrentProfile => null;
         public Entitlement? CurrentEntitlement => null;
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
         public event EventHandler? StateChanged
         {
             add { }

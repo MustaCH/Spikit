@@ -35,6 +35,19 @@ public class CommandLineArgsTests
     }
 
     [Fact]
+    public void ConsumeOnboarding_flips_flag_to_false()
+    {
+        // EP-11.7: tras un logout/login round-trip, el flag --onboarding inicial no
+        // debe pegarse y re-entrar al wizard. App lo consume tras pasarlo una vez.
+        var cli = new CommandLineArgs(new[] { "--onboarding" });
+        Assert.True(cli.Onboarding);
+
+        cli.ConsumeOnboarding();
+
+        Assert.False(cli.Onboarding);
+    }
+
+    [Fact]
     public void Captures_SpikitUri_when_arg_starts_with_scheme()
     {
         var cli = new CommandLineArgs(new[] { "spikit://auth-callback?access_token=abc&refresh_token=def" });

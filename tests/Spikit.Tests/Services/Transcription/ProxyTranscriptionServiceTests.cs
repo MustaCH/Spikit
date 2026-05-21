@@ -175,6 +175,8 @@ public class ProxyTranscriptionServiceTests
         public AuthSessionState State => AuthSessionState.LoggedIn;
         public UserProfile? CurrentProfile => null;
         public Entitlement? CurrentEntitlement => null;
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
         public event EventHandler? StateChanged { add { } remove { } }
         public event EventHandler<string>? AuthPendingReceived { add { } remove { } }
         public void RaiseAuthPendingReceived(string email) { }

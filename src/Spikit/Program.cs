@@ -290,6 +290,15 @@ public static class Program
                     services.AddHttpClient<ISupabaseEntitlementClient, SupabaseEntitlementClient>(c =>
                         c.Timeout = TimeSpan.FromSeconds(15));
                     services.AddSingleton<IAuthService, AuthService>();
+                    // EP-11.8 — background worker que sale del modo offline cuando vuelve
+                    // la red. Polling con backoff 30s → 1m → 2m → 5m cap. Idle al 15s
+                    // hasta que IAuthService.IsOfflineMode = true.
+                    services.AddHostedService<OfflineRefreshWorker>();
+                    // EP-11.7 — orquesta logout: apaga orchestrator/hotkey/tray + delega
+                    // auth cleanup. PlanSectionViewModel lo consume en lugar de IAuthService
+                    // directo; App escucha el StateChanged que dispara internamente para
+                    // hacer el UI cleanup (cerrar ventanas, abrir LoginWindow).
+                    services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
                     // EP-10.4 — Dispatcher invocado en boot directo (argv `spikit://...`)
                     // y vía SingleInstance.UriForwardRequested (segunda instancia forwardea
                     // a la primaria). Parsea + rutea por SpikitUriKind.
@@ -317,6 +326,9 @@ public static class Program
                     // exponemos la interfaz por separado para que la sección Hotkey pueda
                     // depender solo del subset que usa (BeginDemoMode/EndDemoMode + evento).
                     services.AddSingleton<IDictationDemoMode>(sp =>
+                        sp.GetRequiredService<DictationOrchestrator>());
+                    // EP-11.7 — lifecycle para SessionLifecycleService (Cancel + Stop).
+                    services.AddSingleton<IDictationLifecycle>(sp =>
                         sp.GetRequiredService<DictationOrchestrator>());
                 })
                 .Build();

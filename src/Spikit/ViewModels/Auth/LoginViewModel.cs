@@ -204,6 +204,20 @@ public sealed class LoginViewModel : ViewModelBase, IDisposable
         State = LoginState.Idle;
     }
 
+    // EP-11.8 — entry-point al estado ErrorNetwork cuando el boot falla por red
+    // sin tokens recuperables (no había cache válido para fallback offline). El
+    // estado ya existe en el flow normal del callback (HandleAuthCallback con
+    // HttpRequestException); este método lo expone para que App.xaml.cs lo
+    // dispare desde el bootstrap.
+    public void EnterErrorNetwork()
+    {
+        StopAllTimers();
+        ErrorReason = null;
+        _consecutiveValidationErrors = 0;
+        OnPropertyChanged(nameof(ShowSupportHint));
+        State = LoginState.ErrorNetwork;
+    }
+
     // Llamado por App.xaml.cs cuando el SpikitUriDispatcher recibe un
     // `spikit://auth-pending?email=...`. El email viene URL-decoded por el parser.
     public void HandleAuthPending(string? email)

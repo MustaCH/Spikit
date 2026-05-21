@@ -18,7 +18,7 @@ namespace Spikit.Services.Orchestration;
 // Coordina el flow completo del dictado. State machine explícita Idle → Recording →
 // Transcribing → Inserting → Idle (o ShowingFloatingResult si paste falla).
 // Decisiones de comportamiento en docs/architecture.md § "Arquitectura del feature crítico".
-public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
+public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode, IDictationLifecycle
 {
     private const int SampleRateHz = 16_000;
     private const int MinSessionSamples = SampleRateHz / 2; // 500 ms — CB-4
@@ -291,6 +291,17 @@ public sealed class DictationOrchestrator : IDisposable, IDictationDemoMode
 
         _logger.LogInformation("Cancel hotkey (Esc) recibido en estado {State} — cancelando sesión", _state);
         await CancelSessionAsync().ConfigureAwait(true);
+    }
+
+    // EP-11.7: cancela la sesión activa desde afuera del orchestrator (típicamente el
+    // ISessionLifecycleService cuando el usuario hace logout en medio de un dictado).
+    // No-op si estamos en Idle. Mismo path interno que la cancelación por Esc/re-press
+    // del hotkey — descarta el audio capturado, libera tokens, vuelve a Idle.
+    public Task CancelActiveSessionAsync()
+    {
+        if (_disposed) return Task.CompletedTask;
+        if (_state == DictationState.Idle) return Task.CompletedTask;
+        return CancelSessionAsync();
     }
 
     private async Task CancelSessionAsync()

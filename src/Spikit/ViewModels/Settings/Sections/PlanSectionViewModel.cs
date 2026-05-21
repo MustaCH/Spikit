@@ -19,6 +19,7 @@ public sealed class PlanSectionViewModel : ViewModelBase, IDisposable
     public const string YearlyLookupKey = "pro_yearly";
 
     private readonly IAuthService _auth;
+    private readonly ISessionLifecycleService _lifecycle;
     private readonly IStripeBillingClient _billing;
     private readonly IBrowserLauncher _browser;
     private readonly ILogger<PlanSectionViewModel> _logger;
@@ -31,22 +32,25 @@ public sealed class PlanSectionViewModel : ViewModelBase, IDisposable
 
     public PlanSectionViewModel(
         IAuthService auth,
+        ISessionLifecycleService lifecycle,
         IStripeBillingClient billing,
         IBrowserLauncher browser,
         ILogger<PlanSectionViewModel> logger)
-        : this(auth, billing, browser, TimeProvider.System, logger)
+        : this(auth, lifecycle, billing, browser, TimeProvider.System, logger)
     {
     }
 
     // Constructor extendido para tests. TimeProvider afecta el cálculo de "días restantes".
     public PlanSectionViewModel(
         IAuthService auth,
+        ISessionLifecycleService lifecycle,
         IStripeBillingClient billing,
         IBrowserLauncher browser,
         TimeProvider time,
         ILogger<PlanSectionViewModel> logger)
     {
         _auth = auth;
+        _lifecycle = lifecycle;
         _billing = billing;
         _browser = browser;
         _time = time;
@@ -237,7 +241,10 @@ public sealed class PlanSectionViewModel : ViewModelBase, IDisposable
         BusyMessage = "Cerrando sesión…";
         try
         {
-            await _auth.LogoutAsync(CancellationToken.None).ConfigureAwait(true);
+            // EP-11.7: ISessionLifecycleService apaga orchestrator + hotkey + tray antes
+            // de invalidar tokens; el StateChanged que dispara internamente lo escucha
+            // App.xaml.cs para cerrar ventanas y abrir LoginWindow.
+            await _lifecycle.LogoutAsync(CancellationToken.None).ConfigureAwait(true);
         }
         catch (Exception ex)
         {

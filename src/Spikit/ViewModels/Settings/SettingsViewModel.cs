@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Spikit.Services.Auth;
 using Spikit.ViewModels.Settings.Sections;
 
 namespace Spikit.ViewModels.Settings;
@@ -13,13 +14,22 @@ namespace Spikit.ViewModels.Settings;
 // haga DataContext="{Binding Xxx}" en cada UserControl (mismo patrón que OnboardingViewModel
 // con Provider/Hotkey/Prueba). EP-4.3 cableó Provider; el resto entra cuando aterricen
 // EP-4.4 a EP-4.9.
-public sealed class SettingsViewModel : ViewModelBase
+//
+// Reactivo al tier (EP-11.6 / ADR-0008 sub-task #6): la sección Provider solo es válida
+// para BYOK (incluyendo grace 30d). Para Trial/Pro/Expired/no-logueado el sidebar item
+// y la sección se ocultan vía IsProviderVisible. Si el usuario está parado en Provider y
+// el tier cambia a uno que ya no debe verlo (revoke BYOK + expire), redirigimos a General
+// automáticamente. Patrón de suscripción a IAuthService.StateChanged copiado de
+// PlanSectionViewModel (commit 38a6fff).
+public sealed class SettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly ILogger<SettingsViewModel> _logger;
+    private readonly IAuthService _auth;
     private SettingsSection _currentSection = SettingsSection.General;
 
     public SettingsViewModel(
         ILogger<SettingsViewModel> logger,
+        IAuthService auth,
         ProviderSectionViewModel provider,
         HotkeySectionViewModel hotkey,
         GeneralSectionViewModel general,
@@ -30,6 +40,7 @@ public sealed class SettingsViewModel : ViewModelBase
         AboutSectionViewModel about)
     {
         _logger = logger;
+        _auth = auth;
         Provider = provider;
         Hotkey = hotkey;
         General = general;
@@ -44,6 +55,8 @@ public sealed class SettingsViewModel : ViewModelBase
         History.NavigateRequested += OnHistoryNavigateRequested;
 
         NavigateToCommand = new RelayCommand<SettingsSection>(NavigateTo);
+
+        _auth.StateChanged += OnAuthStateChanged;
     }
 
     // Section VMs — expuestos como properties para DataContext-binding desde el XAML.
@@ -83,6 +96,19 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool IsHistorySection => CurrentSection == SettingsSection.History;
     public bool IsPlanSection => CurrentSection == SettingsSection.Plan;
     public bool IsAboutSection => CurrentSection == SettingsSection.About;
+
+    // EP-11.6: visibilidad del item Provider en el sidebar + la sección entera. Solo BYOK
+    // (incluyendo grace 30d, donde el Tier sigue siendo Byok hasta el expire). Para
+    // Trial/Pro/Expired/no-logueado queda oculto. Confirmado con Nacho 2026-05-20.
+    public bool IsProviderVisible =>
+        _auth.State == AuthSessionState.LoggedIn
+        && _auth.CurrentEntitlement?.Tier == Tier.Byok;
+
+    // Defensa en profundidad: el UserControl del content panel solo se renderiza si la
+    // sección es la activa Y el tier la permite. Aunque el sidebar item esté oculto, si
+    // por algún motivo CurrentSection quedara en Provider con un tier no-BYOK (race entre
+    // el StateChanged y el redirect), la sección no se dibuja.
+    public bool IsProviderSectionRendered => IsProviderSection && IsProviderVisible;
 
     // Flags `IsXxxSelected` son alias semánticos de los `IsXxxSection` para usarlos en el
     // sidebar (item activo). Los duplico en lugar de reusar IsXxxSection porque un futuro
@@ -125,5 +151,25 @@ public sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsHistorySelected));
         OnPropertyChanged(nameof(IsPlanSelected));
         OnPropertyChanged(nameof(IsAboutSelected));
+
+        OnPropertyChanged(nameof(IsProviderSectionRendered));
     }
+
+    private void OnAuthStateChanged(object? sender, EventArgs e)
+    {
+        // El tier puede haber cambiado a uno que ya no debe ver Provider (BYOK → Expired
+        // post-grace, o logout). Si estamos parados ahí, redirigimos a General antes de
+        // notificar para evitar ver Provider "vacío" un frame.
+        if (CurrentSection == SettingsSection.Provider && !IsProviderVisible)
+        {
+            _logger.LogInformation(
+                "Settings: tier ya no permite ver Provider, redirigiendo a General");
+            CurrentSection = SettingsSection.General;
+        }
+
+        OnPropertyChanged(nameof(IsProviderVisible));
+        OnPropertyChanged(nameof(IsProviderSectionRendered));
+    }
+
+    public void Dispose() => _auth.StateChanged -= OnAuthStateChanged;
 }

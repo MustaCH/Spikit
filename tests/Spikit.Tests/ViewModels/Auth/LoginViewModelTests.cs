@@ -455,6 +455,8 @@ public class LoginViewModelTests
         public AuthSessionState State => _state;
         public UserProfile? CurrentProfile { get; set; }
         public Entitlement? CurrentEntitlement { get; set; }
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
 
         public event EventHandler? StateChanged;
         public event EventHandler<string>? AuthPendingReceived;

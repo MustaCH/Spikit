@@ -71,6 +71,7 @@ internal sealed class WpfTrayIconService : ITrayIconService
 
     private void InitializeOnUiThread()
     {
+        if (_disposed) return;
         if (_icon is not null) return;
 
         try
@@ -279,13 +280,35 @@ internal sealed class WpfTrayIconService : ITrayIconService
         _dispatcher.BeginInvoke(RefreshMenuState);
     }
 
+    public void Shutdown()
+    {
+        // EP-11.7: cleanup transitorio para el logout flow — libera el icono + recursos
+        // nativos pero NO marca _disposed = true. Un Initialize posterior re-arma todo.
+        // Idempotente (re-llamar tras Shutdown previo es no-op porque _icon ya es null).
+        if (_icon is null && _nativeIcon is null && _hicon == IntPtr.Zero) return;
+
+        _dispatcher.BeginInvoke(ShutdownOnUiThread);
+    }
+
+    private void ShutdownOnUiThread()
+    {
+        _logger.LogInformation("TrayIcon shutdown (logout)");
+        ReleaseNativeResources();
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
 
         _logger.LogInformation("TrayIcon disposing");
+        ReleaseNativeResources();
+    }
 
+    // Cleanup compartido entre Shutdown (transitorio) y Dispose (terminal). Desuscribe
+    // events + libera tray + native icon + HICON handle. Idempotente.
+    private void ReleaseNativeResources()
+    {
         _settings.SettingsChanged -= OnSettingsChanged;
         _hotkey.PausedChanged -= OnPausedChanged;
         _orchestrator.StateChanged -= OnOrchestratorStateChanged;

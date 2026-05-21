@@ -14,6 +14,13 @@ public sealed class AuthService : IAuthService, IDisposable
     // refresh. Evita race con un request HTTP en vuelo que toma 1-2s y le llega 401.
     private static readonly TimeSpan RefreshBuffer = TimeSpan.FromMinutes(2);
 
+    // EP-11.8 — TTL del cache aceptado por el fallback offline. Mientras el último
+    // refresh exitoso del entitlement esté dentro de esta ventana, la app puede
+    // arrancar sin red usando el cache + tokens DPAPI válidos. Pasado el límite,
+    // forzamos re-login (la app no puede operar en confianza ciega indefinidamente).
+    // Decisión EP-11.8: 7 días — alineado con [[ADR-0008]] sub-task #8.
+    public static readonly TimeSpan OfflineFallbackTtl = TimeSpan.FromDays(7);
+
     // Cadence de reintentos del refresh post-Stripe (ADR-0007 § 4.2). 5 intentos con
     // delay creciente antes de cada uno; total worst-case ~8.7s. Internamente
     // accesible para que los tests inyecten una cadence más corta.
@@ -39,6 +46,8 @@ public sealed class AuthService : IAuthService, IDisposable
 
     private AuthSessionState _state = AuthSessionState.LoggedOut;
     private UserProfile? _profile;
+    private bool _isOfflineMode;
+    private AuthInitOutcome _lastInitOutcome = AuthInitOutcome.NotRun;
 
     public AuthService(
         IAuthTokenStore tokenStore,
@@ -78,6 +87,8 @@ public sealed class AuthService : IAuthService, IDisposable
     public AuthSessionState State => _state;
     public UserProfile? CurrentProfile => _profile;
     public Entitlement? CurrentEntitlement => _entitlementCache.ReadStale();
+    public bool IsOfflineMode => _isOfflineMode;
+    public AuthInitOutcome LastInitializeOutcome => _lastInitOutcome;
 
     public event EventHandler? StateChanged;
     public event EventHandler<string>? AuthPendingReceived;
@@ -96,6 +107,7 @@ public sealed class AuthService : IAuthService, IDisposable
         if (tokens is null)
         {
             _logger.LogDebug("Sin tokens en DPAPI — arranco LoggedOut");
+            _lastInitOutcome = AuthInitOutcome.NoTokens;
             return;
         }
 
@@ -104,6 +116,8 @@ public sealed class AuthService : IAuthService, IDisposable
             var accessToken = await EnsureFreshAccessTokenInternalAsync(tokens, ct).ConfigureAwait(false);
             var profile = await _authClient.ValidateAccessTokenAsync(accessToken, ct).ConfigureAwait(false);
             SetLoggedIn(profile);
+            _isOfflineMode = false;
+            _lastInitOutcome = AuthInitOutcome.Success;
 
             // Best-effort: si el cache está fresh, no hace falta refetch. Si está vencido
             // o no existe, lo refrescamos en background sin bloquear startup.
@@ -117,18 +131,68 @@ public sealed class AuthService : IAuthService, IDisposable
             // Server rechazó el token incluso post-refresh — limpiamos y caemos a logged out.
             _logger.LogWarning(ex, "Init: server rechazó tokens — limpiando para forzar re-login");
             ClearAndLogout();
+            _lastInitOutcome = AuthInitOutcome.SessionRevoked;
         }
         catch (AuthRefreshFailedException ex)
         {
             _logger.LogWarning(ex, "Init: refresh falló — limpiando para forzar re-login");
             ClearAndLogout();
+            _lastInitOutcome = AuthInitOutcome.SessionRevoked;
         }
         catch (AuthException ex)
         {
-            // Red / 5xx — preservamos tokens. La UI ve LoggedOut hasta el próximo arranque
-            // con red, momento en el que se intenta de nuevo.
-            _logger.LogWarning(ex, "Init: error transitorio, sigo offline. Tokens preservados");
+            // EP-11.8 — red / 5xx. Antes preservábamos tokens pero caíamos LoggedOut,
+            // mandando al user al LoginWindow aunque su sesión seguía siendo válida.
+            // Ahora intentamos fallback offline: si hay tokens + cache reciente,
+            // arrancamos en modo offline con el snapshot cacheado y el background
+            // worker se encarga de retry.
+            _logger.LogWarning(ex, "Init: error de red — intentando fallback offline");
+            _lastInitOutcome = AuthInitOutcome.NetworkFailure;
+            TryEnterOfflineMode(tokens);
         }
+    }
+
+    // EP-11.8 — fallback offline cuando el server es inalcanzable durante Init pero
+    // tenemos tokens DPAPI persistidos. Requisitos:
+    //
+    //  1. El cache de entitlement existe y su edad es <= OfflineFallbackTtl (7d). Sin
+    //     esto no podemos garantizar que el tier siga vigente — preferimos forzar
+    //     re-login antes que operar con datos arbitrariamente viejos.
+    //  2. El JWT del access_token decodifica a un UserProfile válido (sub + email).
+    //     Sin esto la UI no tiene a quién mostrar como "estás logueado como X".
+    //
+    // Si ambos OK: SetLoggedIn con el profile decodificado + flag IsOfflineMode = true.
+    // El OfflineRefreshWorker (IHostedService) hace polling en background para salir
+    // del modo offline en cuanto vuelva la red.
+    //
+    // Si falla cualquiera de los dos requisitos: NO limpiamos tokens (la próxima vez
+    // que haya red el flow normal va a recuperar), pero State queda LoggedOut. App
+    // muestra LoginWindow con variant de red caída (vs SessionExpired) para que el
+    // user sepa que necesita conexión.
+    private void TryEnterOfflineMode(AccessTokenPair tokens)
+    {
+        var cached = _entitlementCache.ReadStaleWithin(OfflineFallbackTtl);
+        if (cached is null)
+        {
+            _logger.LogInformation(
+                "Fallback offline rechazado: cache de entitlement ausente o > {Ttl} días",
+                OfflineFallbackTtl.TotalDays);
+            return;
+        }
+
+        var profile = JwtClaimsExtractor.TryExtractProfile(tokens.AccessToken);
+        if (profile is null)
+        {
+            _logger.LogWarning(
+                "Fallback offline rechazado: JWT no decodifica a sub+email");
+            return;
+        }
+
+        _logger.LogInformation(
+            "Fallback offline activado: profile={Email}, tier={Tier}",
+            profile.Email, cached.Tier);
+        _isOfflineMode = true;
+        SetLoggedIn(profile);
     }
 
     public Task StartLoginAsync(CancellationToken ct)
@@ -298,6 +362,16 @@ public sealed class AuthService : IAuthService, IDisposable
         {
             var entitlement = await _entitlementClient.FetchAsync(accessToken, ct).ConfigureAwait(false);
             _entitlementCache.Write(entitlement);
+
+            // EP-11.8 — un fetch exitoso del entitlement implica que el server está
+            // alcanzable y el access_token sigue válido. Si veníamos en offline mode,
+            // salimos acá. El OfflineRefreshWorker detecta el flip via StateChanged.
+            if (_isOfflineMode)
+            {
+                _isOfflineMode = false;
+                _logger.LogInformation("Offline mode resuelto — server alcanzable de nuevo");
+            }
+
             StateChanged?.Invoke(this, EventArgs.Empty);
             return entitlement;
         }
@@ -387,6 +461,9 @@ public sealed class AuthService : IAuthService, IDisposable
     {
         _state = AuthSessionState.LoggedOut;
         _profile = null;
+        // EP-11.8 — el offline mode solo aplica con sesión activa. Cualquier logout
+        // (manual, revoke server-side, clear post-init) apaga la flag.
+        _isOfflineMode = false;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 }

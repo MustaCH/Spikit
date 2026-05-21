@@ -16,6 +16,18 @@ public interface IAuthService
     // Última snapshot conocida del entitlement (puede estar stale). Para UI bind.
     Entitlement? CurrentEntitlement { get; }
 
+    // EP-11.8 — true cuando la sesión está LoggedIn pero el último round-trip al
+    // server (Init o post-Init refresh) falló por red y caímos al cache. El
+    // OfflineRefreshWorker hace polling en background para salir de este modo.
+    // El UI puede ignorarlo en V1; el flag está expuesto para tests + decisiones
+    // futuras de feedback al usuario.
+    bool IsOfflineMode { get; }
+
+    // EP-11.8 — outcome del último InitializeAsync. App.xaml.cs lo usa para decidir
+    // si tras un boot con tokens persistidos + State=LoggedOut conviene mostrar
+    // SessionExpired (revoke server-side) o un mensaje de red caída.
+    AuthInitOutcome LastInitializeOutcome { get; }
+
     // Notifica cuando State, CurrentProfile o CurrentEntitlement cambian. Idempotente
     // — listeners deciden qué leer en respuesta.
     event EventHandler? StateChanged;

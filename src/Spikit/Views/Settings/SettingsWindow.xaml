@@ -323,7 +323,8 @@
                                         Content="Provider"
                                         Tag="{Binding IsProviderSelected}"
                                         Command="{Binding NavigateToCommand}"
-                                        CommandParameter="Provider"/>
+                                        CommandParameter="Provider"
+                                        Visibility="{Binding IsProviderVisible, Converter={StaticResource BoolToVis}}"/>
                                 <Button Style="{StaticResource SidebarItemStyle}"
                                         Content="Hotkey"
                                         Tag="{Binding IsHotkeySelected}"
@@ -376,7 +377,7 @@
                             <sections:ProviderSectionView
                                 Style="{StaticResource SectionTransitionStyle}"
                                 DataContext="{Binding Provider}"
-                                Visibility="{Binding DataContext.IsProviderSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+                                Visibility="{Binding DataContext.IsProviderSectionRendered, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
                             <sections:HotkeySectionView
                                 Style="{StaticResource SectionTransitionStyle}"
                                 DataContext="{Binding Hotkey}"

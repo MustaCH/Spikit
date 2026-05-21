@@ -106,17 +106,128 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task InitializeAsync_network_error_preserves_tokens()
+    public async Task InitializeAsync_network_error_without_cache_preserves_tokens_and_LoggedOut()
     {
+        // EP-11.8 — sin cache válido el fallback offline se rechaza; los tokens se
+        // preservan para reintentar en el próximo arranque (no es revoke).
         var originalPair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
         _tokens.Pair = originalPair;
         _authClient.ValidateThrows = new AuthException("network glitch");
+        _cache.OfflineFallbackEntitlement = null;
         var svc = BuildService();
 
         await svc.InitializeAsync(CancellationToken.None);
 
         Assert.Equal(AuthSessionState.LoggedOut, svc.State);
+        Assert.False(svc.IsOfflineMode);
+        Assert.Equal(AuthInitOutcome.NetworkFailure, svc.LastInitializeOutcome);
         Assert.Same(originalPair, _tokens.Pair);
+    }
+
+    // ──────────────────── EP-11.8: offline fallback ──────────────────────────────
+
+    [Fact]
+    public async Task InitializeAsync_network_error_with_valid_cache_enters_offline_mode()
+    {
+        // JWT decodificable → fallback OK. Auth queda LoggedIn con IsOfflineMode=true
+        // y el profile viene de las claims del JWT, no de un round-trip al server.
+        var jwt = TestJwt.Build(sub: "user-offline", email: "nacho@spikit.dev");
+        var originalPair = new AccessTokenPair(jwt, "refresh-x",
+            _time.GetUtcNow().AddHours(1));
+        _tokens.Pair = originalPair;
+        _authClient.ValidateThrows = new AuthException("network glitch");
+        _cache.OfflineFallbackEntitlement = SampleEntitlement();
+        var svc = BuildService();
+
+        await svc.InitializeAsync(CancellationToken.None);
+
+        Assert.Equal(AuthSessionState.LoggedIn, svc.State);
+        Assert.True(svc.IsOfflineMode);
+        Assert.Equal(AuthInitOutcome.NetworkFailure, svc.LastInitializeOutcome);
+        Assert.Equal("nacho@spikit.dev", svc.CurrentProfile!.Email);
+        Assert.Same(originalPair, _tokens.Pair);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_network_error_with_unparseable_jwt_stays_LoggedOut()
+    {
+        // Cache existe pero el JWT no parsea a sub+email — rechazamos el offline mode
+        // (la UI no podría mostrar "estás logueado como X").
+        _tokens.Pair = new AccessTokenPair("not-a-jwt", "refresh-x",
+            _time.GetUtcNow().AddHours(1));
+        _authClient.ValidateThrows = new AuthException("network glitch");
+        _cache.OfflineFallbackEntitlement = SampleEntitlement();
+        var svc = BuildService();
+
+        await svc.InitializeAsync(CancellationToken.None);
+
+        Assert.Equal(AuthSessionState.LoggedOut, svc.State);
+        Assert.False(svc.IsOfflineMode);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_success_keeps_offline_mode_off()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _authClient.ProfileForValidate = SampleProfile();
+        _cache.OfflineFallbackEntitlement = SampleEntitlement();
+        var svc = BuildService();
+
+        await svc.InitializeAsync(CancellationToken.None);
+
+        Assert.False(svc.IsOfflineMode);
+        Assert.Equal(AuthInitOutcome.Success, svc.LastInitializeOutcome);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_token_invalid_records_SessionRevoked_outcome()
+    {
+        _tokens.Pair = PairExpiringAt(_time.GetUtcNow().AddHours(1));
+        _authClient.ValidateThrows = new AuthTokenInvalidException("rejected");
+        var svc = BuildService();
+
+        await svc.InitializeAsync(CancellationToken.None);
+
+        Assert.Equal(AuthInitOutcome.SessionRevoked, svc.LastInitializeOutcome);
+    }
+
+    [Fact]
+    public async Task RefreshEntitlementAsync_success_clears_offline_mode()
+    {
+        // Setup: arrancar en offline mode.
+        var jwt = TestJwt.Build(sub: "u1", email: "x@y.com");
+        _tokens.Pair = new AccessTokenPair(jwt, "r", _time.GetUtcNow().AddHours(1));
+        _authClient.ValidateThrows = new AuthException("network glitch");
+        _cache.OfflineFallbackEntitlement = SampleEntitlement();
+        var svc = BuildService();
+        await svc.InitializeAsync(CancellationToken.None);
+        Assert.True(svc.IsOfflineMode);
+
+        // Ahora simulamos que el server volvió: limpiamos el throw y damos un entitlement.
+        _authClient.ValidateThrows = null;
+        _entitlementClient.NextResult = SampleEntitlement();
+
+        var result = await svc.RefreshEntitlementAsync(CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.False(svc.IsOfflineMode);
+    }
+
+    [Fact]
+    public async Task LogoutAsync_clears_offline_mode()
+    {
+        var jwt = TestJwt.Build(sub: "u1", email: "x@y.com");
+        _tokens.Pair = new AccessTokenPair(jwt, "r", _time.GetUtcNow().AddHours(1));
+        _authClient.ValidateThrows = new AuthException("net");
+        _cache.OfflineFallbackEntitlement = SampleEntitlement();
+        var svc = BuildService();
+        await svc.InitializeAsync(CancellationToken.None);
+        Assert.True(svc.IsOfflineMode);
+
+        await svc.LogoutAsync(CancellationToken.None);
+
+        Assert.False(svc.IsOfflineMode);
+        Assert.Equal(AuthSessionState.LoggedOut, svc.State);
     }
 
     // ──────────────────────────────────── StartLoginAsync ─────────────────────────
@@ -502,7 +613,28 @@ public class AuthServiceTests
         Assert.Equal(0, _entitlementClient.FetchCallCount);
     }
 
-    // ────────────────────────────────────── Fakes ─────────────────────────────────
+    // ────────────────────────────────────── Helpers / Fakes ─────────────────────
+
+    // EP-11.8 — JWT mínimo construido a mano para tests del offline fallback. Solo
+    // poblamos las claims que JwtClaimsExtractor consume (sub + email). La firma es
+    // un placeholder — JwtClaimsExtractor no la verifica (eso lo haría el server).
+    private static class TestJwt
+    {
+        public static string Build(string sub, string email)
+        {
+            static string B64Url(string s)
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(s);
+                return Convert.ToBase64String(bytes)
+                    .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            }
+
+            var header = B64Url("{\"alg\":\"HS256\",\"typ\":\"JWT\"}");
+            var payload = B64Url($"{{\"sub\":\"{sub}\",\"email\":\"{email}\"}}");
+            var signature = "fake-signature";
+            return $"{header}.{payload}.{signature}";
+        }
+    }
 
     private sealed class FakeTokenStore : IAuthTokenStore
     {
@@ -516,8 +648,15 @@ public class AuthServiceTests
     {
         public Entitlement? LastWrite { get; set; }
         public bool Cleared { get; private set; }
+
+        // EP-11.8: simulación del cache para el fallback offline. Por default null
+        // (cache caducó o nunca existió → fallback debería rechazar). Los tests que
+        // quieren validar el path "offline activado" setean esto a un Entitlement.
+        public Entitlement? OfflineFallbackEntitlement { get; set; }
+
         public Entitlement? ReadFresh() => LastWrite;
         public Entitlement? ReadStale() => LastWrite;
+        public Entitlement? ReadStaleWithin(TimeSpan maxAge) => OfflineFallbackEntitlement;
         public void Write(Entitlement entitlement) { LastWrite = entitlement; Cleared = false; }
         public void Clear() { LastWrite = null; Cleared = true; }
     }

@@ -166,6 +166,8 @@ public class TieredTranscriptionServiceTests
         public AuthSessionState State { get; set; } = AuthSessionState.LoggedOut;
         public UserProfile? CurrentProfile { get; set; }
         public Entitlement? CurrentEntitlement { get; set; }
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
         public string? CurrentToken { get; set; } = "tk";
         public event EventHandler? StateChanged { add { } remove { } }
         public event EventHandler<string>? AuthPendingReceived { add { } remove { } }

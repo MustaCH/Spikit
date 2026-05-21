@@ -50,6 +50,12 @@ public partial class App : Application
     // "tenía tokens y el refresh falló" (SessionExpired) sin manchar IAuthService.
     private bool _hadTokensAtBoot;
 
+    // EP-11.7 — última snapshot conocida del auth state, comparada en OnAuthStateChanged
+    // para detectar SOLO la transición LoggedIn → LoggedOut (logout). El StateChanged se
+    // dispara también en login y refresh de entitlement; sin trackear el anterior no
+    // podríamos distinguirlos.
+    private AuthSessionState _lastObservedAuthState = AuthSessionState.LoggedOut;
+
     public App(IHost host, ILogger<App> logger, CommandLineArgs cliArgs, ISingleInstanceGuard instanceGuard)
     {
         _host = host;
@@ -111,6 +117,15 @@ public partial class App : Application
         // detecta el StateChanged y cierra la window sola (cableado en EP-11.3).
         var auth = _host.Services.GetRequiredService<IAuthService>();
         await AuthInitializeWithTimeout(auth);
+
+        // EP-11.7 — listener del StateChanged para detectar logouts disparados desde el
+        // PlanSectionViewModel vía ISessionLifecycleService. Cuando observamos la
+        // transición LoggedIn → LoggedOut mientras estamos en MainApp, hacemos el UI
+        // cleanup (cerrar ventanas) y volvemos a LoginWindow. Se suscribe una sola vez,
+        // post-init para que el snapshot inicial refleje el estado real (sino el primer
+        // dispatch ya cuenta como "transición" si la sesión es válida).
+        _lastObservedAuthState = auth.State;
+        auth.StateChanged += OnAuthStateChanged;
 
         // Bootstrap del tema: leemos el setting persistido y lo aplicamos antes de mostrar
         // ventanas. Si el archivo no existe (primera ejecución) o está corrupto, queda
@@ -201,11 +216,25 @@ public partial class App : Application
         var window = _host.Services.GetRequiredService<LoginWindow>();
         _activeLoginWindow = window;
 
-        var variant = (_host.Services.GetRequiredService<IAuthService>().State == AuthSessionState.LoggedOut
-                       && _hadTokensAtBoot)
-            ? LoginIdleVariant.SessionExpired
-            : LoginIdleVariant.FirstLaunch;
-        window.ViewModel.EnterIdle(variant);
+        var auth = _host.Services.GetRequiredService<IAuthService>();
+
+        // EP-11.8 — si el último Init falló por red Y había tokens, mostramos
+        // ErrorNetwork ("Sin conexión") en lugar de Idle.SessionExpired (que da a
+        // entender que la sesión venció server-side, lo que sería engañoso). El
+        // background worker va a salir del modo offline solo cuando vuelva la red.
+        if (_hadTokensAtBoot
+            && auth.State == AuthSessionState.LoggedOut
+            && auth.LastInitializeOutcome == AuthInitOutcome.NetworkFailure)
+        {
+            window.ViewModel.EnterErrorNetwork();
+        }
+        else
+        {
+            var variant = (auth.State == AuthSessionState.LoggedOut && _hadTokensAtBoot)
+                ? LoginIdleVariant.SessionExpired
+                : LoginIdleVariant.FirstLaunch;
+            window.ViewModel.EnterIdle(variant);
+        }
 
         // Si argv trae un deep-link, inyectarlo al VM ANTES de Show — sino el user
         // ve un flash de Idle antes de la transición real al estado correcto.
@@ -290,12 +319,6 @@ public partial class App : Application
         // Sesión válida — transición inline al modo que corresponda (sin relanzar
         // proceso). Mismo split que el switch del OnStartup, pero a esta altura sabemos
         // que isLoggedIn=true y --diagnostics-poc no aplica (no llegamos por ese path).
-        //
-        // TODO(EP-11.6): cuando exista el flow de logout que vuelve a LoginWindow sin
-        // reiniciar el proceso, `_cliArgs.Onboarding` queda "pegado" — un user que abrió
-        // la app con `--onboarding` y después hizo logout/login va a re-entrar al
-        // wizard aunque ya lo haya completado. Nullear el flag tras el primer consumo o
-        // exponer `ConsumeOnboarding()` en CommandLineArgs.
         var completionStore = _host.Services.GetRequiredService<IOnboardingCompletionStore>();
         if (_cliArgs.Onboarding || !completionStore.IsCompleted())
         {
@@ -527,6 +550,77 @@ public partial class App : Application
         return false;
     }
 
+    // EP-11.7 — handler del IAuthService.StateChanged. Detecta SOLO la transición
+    // LoggedIn → LoggedOut mientras estamos en MainApp (que dispara
+    // ISessionLifecycleService.LogoutAsync internamente). Otras transiciones
+    // (login post-LoginWindow, refresh de entitlement con tier cambiado, logout
+    // pre-MainApp como el SessionExpired del startup) las ignoramos.
+    //
+    // Dispatcher.BeginInvoke porque StateChanged puede dispararse en thread no-UI
+    // según el caller (LogoutAsync síncrono de PlanSectionViewModel sería UI, pero
+    // un refresh failure en background no).
+    private void OnAuthStateChanged(object? sender, EventArgs e)
+    {
+        var auth = _host.Services.GetRequiredService<IAuthService>();
+        var prev = _lastObservedAuthState;
+        var current = auth.State;
+        _lastObservedAuthState = current;
+
+        var isLogoutTransition = prev == AuthSessionState.LoggedIn
+                                 && current == AuthSessionState.LoggedOut;
+        if (!isLogoutTransition) return;
+        if (!_mainAppActive) return;
+
+        Dispatcher.BeginInvoke(HandleLogoutOnUiThread);
+    }
+
+    private void HandleLogoutOnUiThread()
+    {
+        _logger.LogInformation("Logout detectado en MainApp — UI cleanup + transición a LoginWindow");
+
+        // Cerrar todas las ventanas vivas EXCEPTO la LoginWindow (que vamos a abrir
+        // a continuación). La pill es Singleton (no se Close de raíz — solo Hide); el
+        // resto son Transient (Settings, FloatingResult, Onboarding hipotético) y sí
+        // se Close-an. Toast windows también las recorremos por las dudas. Iteramos
+        // sobre una snapshot porque Close() muta la colección Windows.
+        var snapshot = Windows.OfType<Window>().ToArray();
+        foreach (var window in snapshot)
+        {
+            try
+            {
+                switch (window)
+                {
+                    case DictationPillWindow pill:
+                        pill.Hide();
+                        break;
+                    case LoginWindow:
+                        // No debería existir en este punto (estamos en MainApp), pero
+                        // por defensa: skip.
+                        break;
+                    default:
+                        window.Close();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error cerrando window {Type} durante logout", window.GetType().Name);
+            }
+        }
+
+        // Resetear flags del shell para que ShowLoginWindow + el flow post-login arranque
+        // limpio. ConsumeOnboarding evita que un user que abrió la app con `--onboarding`
+        // y completó el wizard re-entre al mismo wizard tras logout/login.
+        _mainAppActive = false;
+        _cliArgs.ConsumeOnboarding();
+
+        // Volver al LoginWindow. _hadTokensAtBoot ya quedó "false" en práctica (tokens
+        // recién limpiados); sobrescribimos para que la variante muestre FirstLaunch en
+        // vez de SessionExpired (la sesión no expiró, el user se deslogueó voluntariamente).
+        _hadTokensAtBoot = false;
+        ShowLoginWindow();
+    }
+
     protected override async void OnExit(ExitEventArgs e)
     {
         _logger.LogInformation("App exiting");
@@ -535,6 +629,15 @@ public partial class App : Application
         _instanceGuard.UriForwardRequested -= OnExternalUriRequested;
         try { _instanceGuard.Dispose(); }
         catch (Exception ex) { _logger.LogWarning(ex, "Error disposing single-instance guard"); }
+
+        // EP-11.7 — desuscribir el handler. Idempotente; aunque el host esté por morir,
+        // mejor dejar el cleanup explícito por consistencia con el resto del OnExit.
+        try
+        {
+            var auth = _host.Services.GetRequiredService<IAuthService>();
+            auth.StateChanged -= OnAuthStateChanged;
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Error desuscribiendo StateChanged"); }
 
         if (_mainAppActive)
         {

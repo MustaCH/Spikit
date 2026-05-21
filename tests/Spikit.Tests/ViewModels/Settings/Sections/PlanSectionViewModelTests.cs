@@ -8,12 +8,18 @@ namespace Spikit.Tests.ViewModels.Settings.Sections;
 public class PlanSectionViewModelTests
 {
     private readonly FakeAuth _auth = new();
+    private readonly FakeSessionLifecycle _lifecycle;
     private readonly FakeBilling _billing = new();
     private readonly FakeBrowser _browser = new();
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 05, 19, 12, 00, 00, TimeSpan.Zero));
 
+    public PlanSectionViewModelTests()
+    {
+        _lifecycle = new FakeSessionLifecycle(_auth);
+    }
+
     private PlanSectionViewModel BuildVm() =>
-        new(_auth, _billing, _browser, _time, NullLogger<PlanSectionViewModel>.Instance);
+        new(_auth, _lifecycle, _billing, _browser, _time, NullLogger<PlanSectionViewModel>.Instance);
 
     // ─────────────────────────────────── State flags ────────────────────────────
 
@@ -283,6 +289,8 @@ public class PlanSectionViewModelTests
         public AuthSessionState State { get; private set; } = AuthSessionState.LoggedOut;
         public UserProfile? CurrentProfile { get; private set; }
         public Entitlement? CurrentEntitlement { get; private set; }
+        public bool IsOfflineMode => false;
+        public AuthInitOutcome LastInitializeOutcome => AuthInitOutcome.NotRun;
         public event EventHandler? StateChanged;
         public event EventHandler<string>? AuthPendingReceived;
 
@@ -361,6 +369,25 @@ public class PlanSectionViewModelTests
     {
         public string? LastUrl { get; private set; }
         public void Open(string url) => LastUrl = url;
+    }
+
+    // EP-11.7: fake mínimo del ISessionLifecycleService — los tests del PlanVM solo
+    // verifican que el logout dispara el flow; el lifecycle real (apagar
+    // orchestrator/hotkey/tray) está cubierto en SessionLifecycleServiceTests.
+    private sealed class FakeSessionLifecycle : ISessionLifecycleService
+    {
+        private readonly FakeAuth _auth;
+        public int LogoutCount { get; private set; }
+        public Exception? NextLogoutException { get; set; }
+
+        public FakeSessionLifecycle(FakeAuth auth) => _auth = auth;
+
+        public Task LogoutAsync(CancellationToken ct)
+        {
+            LogoutCount++;
+            if (NextLogoutException is not null) throw NextLogoutException;
+            return _auth.LogoutAsync(ct);
+        }
     }
 
     private sealed class FakeTimeProvider : TimeProvider

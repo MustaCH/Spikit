@@ -26,6 +26,12 @@ public partial class SettingsWindow : Window
         ViewModel = viewModel;
 
         StateChanged += OnWindowStateChanged;
+
+        // El VM se suscribe a IAuthService.StateChanged en su ctor (EP-11.6). Como el VM
+        // es Transient en DI, una nueva instancia se crea cada vez que se abre Settings;
+        // sin Dispose, las suscripciones de instancias anteriores quedan colgadas y
+        // siguen recibiendo el evento aunque su window ya esté cerrada.
+        Closed += (_, _) => viewModel.Dispose();
     }
 
     public SettingsViewModel ViewModel { get; }

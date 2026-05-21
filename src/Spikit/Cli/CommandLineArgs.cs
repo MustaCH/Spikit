@@ -25,7 +25,13 @@ public sealed class CommandLineArgs
     private const string SpikitUriPrefix = "spikit://";
 
     public bool DiagnosticsPoc { get; }
-    public bool Onboarding { get; }
+
+    // EP-11.7 — mutable porque tras un logout/login round-trip dentro de la misma sesión
+    // del proceso, el flag de la CLI inicial queda "pegado". Sin un consume explícito un
+    // user que abrió la app con `--onboarding`, completó el wizard, hizo logout y volvió
+    // a loguearse re-entraría al wizard aunque ya esté marcado como completed. App
+    // llama ConsumeOnboarding tras pasar por el flow una vez.
+    public bool Onboarding { get; private set; }
 
     // null si --tier no se pasó. Si se pasó pero el valor no parseó a un OnboardingTierVariant
     // conocido, también queda null (mejor ignorar silenciosamente un typo que crashear).
@@ -49,6 +55,14 @@ public sealed class CommandLineArgs
 
         SpikitUri = args.FirstOrDefault(arg =>
             arg is not null && arg.StartsWith(SpikitUriPrefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // EP-11.7: tras consumir el flag Onboarding una vez (al pasar por ShowOnboardingWindow
+    // en el bootstrap), nullearlo para que un logout/login posterior no re-entre al wizard
+    // si el usuario ya completó el onboarding.
+    public void ConsumeOnboarding()
+    {
+        Onboarding = false;
     }
 
     private static OnboardingTierVariant? ParseTierOverride(string? arg)
