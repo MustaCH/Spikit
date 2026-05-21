@@ -94,6 +94,48 @@ public class SpikitUriDispatcherTests
         Assert.Equal(ToastSeverity.Error, toast.Severity);
     }
 
+    // ──────────────────────────────────── AuthPending (EP-11.4) ─────────────────
+
+    [Fact]
+    public async Task DispatchAsync_auth_pending_with_email_raises_event_no_toast()
+    {
+        var dispatcher = BuildDispatcher();
+
+        await dispatcher.DispatchAsync(
+            "spikit://auth-pending?email=nacho%40spikit.dev",
+            CancellationToken.None);
+
+        Assert.Equal(1, _auth.RaiseAuthPendingCount);
+        Assert.Equal("nacho@spikit.dev", _auth.LastRaisedAuthPendingEmail);
+        // Sin toast — el LoginWindow muestra el feedback visual del estado 0.2.
+        Assert.Empty(_toast.Shown);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_auth_pending_without_email_logs_warning_does_not_raise()
+    {
+        var dispatcher = BuildDispatcher();
+
+        await dispatcher.DispatchAsync(
+            "spikit://auth-pending",
+            CancellationToken.None);
+
+        Assert.Equal(0, _auth.RaiseAuthPendingCount);
+        Assert.Empty(_toast.Shown);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_auth_pending_with_empty_email_does_not_raise()
+    {
+        var dispatcher = BuildDispatcher();
+
+        await dispatcher.DispatchAsync(
+            "spikit://auth-pending?email=",
+            CancellationToken.None);
+
+        Assert.Equal(0, _auth.RaiseAuthPendingCount);
+    }
+
     // ──────────────────────────────────── BillingReturn ─────────────────────────
 
     [Fact]
@@ -172,6 +214,18 @@ public class SpikitUriDispatcherTests
         {
             add { }
             remove { }
+        }
+
+        public event EventHandler<string>? AuthPendingReceived;
+
+        public string? LastRaisedAuthPendingEmail { get; private set; }
+        public int RaiseAuthPendingCount { get; private set; }
+
+        public void RaiseAuthPendingReceived(string email)
+        {
+            RaiseAuthPendingCount++;
+            LastRaisedAuthPendingEmail = email;
+            AuthPendingReceived?.Invoke(this, email);
         }
 
         public AuthCallbackResult? NextCallbackResult { get; set; }

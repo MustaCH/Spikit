@@ -284,6 +284,10 @@ public class PlanSectionViewModelTests
         public UserProfile? CurrentProfile { get; private set; }
         public Entitlement? CurrentEntitlement { get; private set; }
         public event EventHandler? StateChanged;
+        public event EventHandler<string>? AuthPendingReceived;
+
+        public void RaiseAuthPendingReceived(string email) =>
+            AuthPendingReceived?.Invoke(this, email);
 
         public string? AccessToken { get; set; }
         public int StartLoginCount { get; private set; }

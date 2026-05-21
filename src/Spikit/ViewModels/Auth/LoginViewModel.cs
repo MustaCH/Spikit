@@ -80,6 +80,7 @@ public sealed class LoginViewModel : ViewModelBase, IDisposable
         RetryNetworkCommand = new RelayCommand(RetryAfterNetworkError);
 
         _auth.StateChanged += OnAuthStateChanged;
+        _auth.AuthPendingReceived += OnAuthPendingReceived;
     }
 
     // ===== State + variant =====
@@ -409,6 +410,19 @@ public sealed class LoginViewModel : ViewModelBase, IDisposable
         }
     }
 
+    // EP-11.4 — el SpikitUriDispatcher dispara este evento cuando llega un
+    // `spikit://auth-pending?email=...`. Equivalente a invocar HandleAuthPending(email)
+    // públicamente, pero por canal de evento para mantener al dispatcher desacoplado
+    // de la capa Views/VMs.
+    //
+    // El handler se ejecuta en el thread del que dispara el dispatcher — típicamente
+    // un threadpool del listener IPC. Marshallamos al UI thread (mismo patrón que
+    // los callbacks de los timers).
+    private void OnAuthPendingReceived(object? sender, string email)
+    {
+        DispatcherInvoke(() => HandleAuthPending(email));
+    }
+
     // ===== Timers (System.Threading.Timer via TimeProvider) =====
     //
     // Usamos TimeProvider.CreateTimer en lugar de DispatcherTimer para que los tests
@@ -512,6 +526,7 @@ public sealed class LoginViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _auth.StateChanged -= OnAuthStateChanged;
+        _auth.AuthPendingReceived -= OnAuthPendingReceived;
         StopAllTimers();
     }
 }

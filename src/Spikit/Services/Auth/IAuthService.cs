@@ -20,6 +20,30 @@ public interface IAuthService
     // — listeners deciden qué leer en respuesta.
     event EventHandler? StateChanged;
 
+    // Disparado por el SpikitUriDispatcher cuando llega un deep-link
+    // `spikit://auth-pending?email=...` (cierre Q-9 de ADR-0008 — la página
+    // spikit.dev/auth emite el redirect tras un signInWithOtp exitoso). El payload
+    // es el email URL-decoded; el listener (típicamente LoginViewModel) lo usa para
+    // mutar al estado WaitingForMagicLink mostrando el email exacto.
+    //
+    // El AuthService NO procesa este evento internamente (no toca tokens, no cambia
+    // State). Sólo lo expone como canal de comunicación entre el dispatcher (que
+    // recibe el URI) y los consumidores de UI. Si no hay listener, no pasa nada —
+    // el dispatcher loguea + sigue.
+    event EventHandler<string>? AuthPendingReceived;
+
+    // Invocado por el SpikitUriDispatcher al recibir `auth-pending`. Centraliza el
+    // disparo del evento `AuthPendingReceived` para que el dispatcher no tenga que
+    // conocer el contrato interno del raise. La impl real solo invoca el delegate.
+    //
+    // TODO(refactor): exponer un método público "raise event" en una interface es un
+    // smell — cualquiera del DI graph puede disparar AuthPendingReceived con un email
+    // arbitrario. Patrón más limpio: mover el evento al `ISpikitUriDispatcher` (es
+    // quien recibe el URI, es la fuente natural del evento) y que el LoginViewModel
+    // se suscriba ahí. No urgente porque el surface lo consume solo el LoginVM hoy,
+    // pero si EP-11.6 (logout) o EP-11.7 (offline) suman listeners, conviene migrar.
+    void RaiseAuthPendingReceived(string email);
+
     // Llamado en startup. Lee tokens de DPAPI, intenta validar (con refresh si hace
     // falta) y poblar Profile + Entitlement. Si todo falla, queda LoggedOut. Errores
     // de red son tolerados — los tokens se conservan para reintentar en el próximo

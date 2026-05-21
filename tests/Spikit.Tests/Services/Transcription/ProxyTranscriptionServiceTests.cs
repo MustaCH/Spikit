@@ -176,6 +176,8 @@ public class ProxyTranscriptionServiceTests
         public UserProfile? CurrentProfile => null;
         public Entitlement? CurrentEntitlement => null;
         public event EventHandler? StateChanged { add { } remove { } }
+        public event EventHandler<string>? AuthPendingReceived { add { } remove { } }
+        public void RaiseAuthPendingReceived(string email) { }
 
         public Task InitializeAsync(CancellationToken ct) => Task.CompletedTask;
         public Task StartLoginAsync(CancellationToken ct) => Task.CompletedTask;

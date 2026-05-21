@@ -40,6 +40,10 @@ public sealed class SpikitUriDispatcher : ISpikitUriDispatcher
                 await HandleAuthCallbackAsync(parsed.Params, ct).ConfigureAwait(false);
                 break;
 
+            case SpikitUriKind.AuthPending:
+                HandleAuthPending(parsed.Params);
+                break;
+
             case SpikitUriKind.BillingReturn:
                 await HandleBillingReturnAsync(parsed.Params, ct).ConfigureAwait(false);
                 break;
@@ -49,6 +53,28 @@ public sealed class SpikitUriDispatcher : ISpikitUriDispatcher
                 _logger.LogWarning("Dispatch: URI kind desconocido, ignorado ({Raw})", rawUri);
                 break;
         }
+    }
+
+    // EP-11.4 — `spikit://auth-pending?email=...` (cierre Q-9 de ADR-0008). El payload
+    // es el email URL-decoded que la página spikit.dev/auth puso en el redirect tras
+    // un signInWithOtp exitoso. No tocamos tokens ni state — solo propagamos al canal
+    // del evento `AuthPendingReceived` del IAuthService para que el LoginViewModel
+    // mute al estado WaitingForMagicLink mostrando el email exacto. Si no hay
+    // LoginWindow visible (caso edge: la app está en MainApp logueada y llega un
+    // auth-pending), el evento no tiene listener y queda como no-op silencioso.
+    //
+    // Sin toast: el feedback visual lo da el LoginWindow (estado 0.2). Mostrar un
+    // toast adicional sería ruido.
+    private void HandleAuthPending(IReadOnlyDictionary<string, string> queryParams)
+    {
+        if (!queryParams.TryGetValue("email", out var email)
+            || string.IsNullOrWhiteSpace(email))
+        {
+            _logger.LogWarning("Dispatch: auth-pending sin email, ignorado");
+            return;
+        }
+
+        _auth.RaiseAuthPendingReceived(email);
     }
 
     private async Task HandleAuthCallbackAsync(IReadOnlyDictionary<string, string> queryParams, CancellationToken ct)

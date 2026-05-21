@@ -80,6 +80,15 @@ public sealed class AuthService : IAuthService, IDisposable
     public Entitlement? CurrentEntitlement => _entitlementCache.ReadStale();
 
     public event EventHandler? StateChanged;
+    public event EventHandler<string>? AuthPendingReceived;
+
+    // El dispatcher recibe `spikit://auth-pending?email=...` y nos pide propagar al
+    // canal del evento. El AuthService no procesa ni persiste — sólo es el bus.
+    public void RaiseAuthPendingReceived(string email)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+        AuthPendingReceived?.Invoke(this, email);
+    }
 
     public async Task InitializeAsync(CancellationToken ct)
     {

@@ -62,6 +62,14 @@ public partial class LoginWindow : Window
         if (_isFadingOut) return;
         _isFadingOut = true;
 
+        // EP-11.4 — clear `_activeLoginWindow` en App.xaml.cs antes del fade para
+        // evitar que un URI forwardeado durante los 200ms del fade ruteen al VM
+        // mid-cierre (race teórica baja pero el patrón limpio cuesta cero).
+        if (Application.Current is App app)
+        {
+            app.ClearActiveLoginWindow();
+        }
+
         // RenderTransform sobre la Window vive en code-behind para no ensuciar el XAML
         // (la window XAML no tiene RenderTransform por default). Asignamos uno justo
         // antes de animar.

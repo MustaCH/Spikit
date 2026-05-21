@@ -168,6 +168,8 @@ public class TieredTranscriptionServiceTests
         public Entitlement? CurrentEntitlement { get; set; }
         public string? CurrentToken { get; set; } = "tk";
         public event EventHandler? StateChanged { add { } remove { } }
+        public event EventHandler<string>? AuthPendingReceived { add { } remove { } }
+        public void RaiseAuthPendingReceived(string email) { }
 
         public Task InitializeAsync(CancellationToken ct) => Task.CompletedTask;
         public Task StartLoginAsync(CancellationToken ct) => Task.CompletedTask;

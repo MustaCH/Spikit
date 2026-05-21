@@ -368,6 +368,47 @@ public class LoginViewModelTests
         Assert.Contains("tardando", vm.ValidatingCaption);
     }
 
+    // ────────────────────────── AuthPendingReceived event (EP-11.4) ───────────
+
+    [Fact]
+    public void OnAuthPendingReceived_with_valid_email_transitions_to_waiting()
+    {
+        // El SpikitUriDispatcher dispara IAuthService.AuthPendingReceived al recibir
+        // spikit://auth-pending. El LoginVM está suscrito y debe mutar al estado 0.2.
+        var auth = new FakeAuthService();
+        var vm = MakeVm(auth);
+
+        auth.RaiseAuthPendingReceived("nacho@spikit.dev");
+
+        Assert.Equal(LoginState.WaitingForMagicLink, vm.State);
+        Assert.Equal("nacho@spikit.dev", vm.PendingEmail);
+    }
+
+    [Fact]
+    public void OnAuthPendingReceived_with_invalid_email_is_ignored()
+    {
+        var auth = new FakeAuthService();
+        var vm = MakeVm(auth);
+
+        auth.RaiseAuthPendingReceived("not-an-email");
+
+        Assert.Equal(LoginState.Idle, vm.State);
+        Assert.Null(vm.PendingEmail);
+    }
+
+    [Fact]
+    public void Dispose_unsubscribes_from_AuthPendingReceived()
+    {
+        var auth = new FakeAuthService();
+        var vm = MakeVm(auth);
+
+        vm.Dispose();
+        auth.RaiseAuthPendingReceived("nacho@spikit.dev");
+
+        // Tras Dispose, el evento ya no debería mutar el VM.
+        Assert.Null(vm.PendingEmail);
+    }
+
     // ────────────────────────── Dispose ────────────────────────────────────────
 
     [Fact]
@@ -416,6 +457,10 @@ public class LoginViewModelTests
         public Entitlement? CurrentEntitlement { get; set; }
 
         public event EventHandler? StateChanged;
+        public event EventHandler<string>? AuthPendingReceived;
+
+        public void RaiseAuthPendingReceived(string email) =>
+            AuthPendingReceived?.Invoke(this, email);
 
         public AuthCallbackResult? NextCallbackResult { get; set; }
         public Exception? HandleAuthCallbackThrows { get; set; }
