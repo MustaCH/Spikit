@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Spikit.Cli;
 using Spikit.Services.Auth;
 using Spikit.Services.Onboarding;
 using Spikit.Services.Settings;
@@ -38,7 +39,8 @@ public sealed class OnboardingViewModel : ViewModelBase
         PruebaStepViewModel prueba,
         IOnboardingCompletionStore completionStore,
         ISettingsService settingsService,
-        IAuthService authService)
+        IAuthService authService,
+        CommandLineArgs? cliArgs = null)
     {
         _logger = logger;
         _completionStore = completionStore;
@@ -50,10 +52,14 @@ public sealed class OnboardingViewModel : ViewModelBase
         // EP-11.5 — snapshot del tier al construir. La decisión queda fija para todo el
         // wizard; si el tier muta mid-flow (caso edge: webhook Stripe), el wizard sigue
         // con la variante original (decisión documentada en design-system §10.13).
-        _tierVariant = ResolveTierVariant(authService);
+        //
+        // EP-11.5 dev — si --tier=trial|pro|byok fue pasado por CLI, override del tier
+        // resuelto. Útil para previewar las 3 variantes sin tocar el tier real en
+        // Supabase. En producción cliArgs.TierOverride es null y caemos al entitlement.
+        _tierVariant = cliArgs?.TierOverride ?? ResolveTierVariant(authService);
         _logger.LogInformation(
-            "Onboarding bifurcation: tier={Tier} → variant={Variant}",
-            authService.CurrentEntitlement?.Tier, _tierVariant);
+            "Onboarding bifurcation: tier={Tier} → variant={Variant} (override={Override})",
+            authService.CurrentEntitlement?.Tier, _tierVariant, cliArgs?.TierOverride);
 
         // Hidratamos el flag desde settings: si el usuario reabre el onboarding tras
         // haber tocado el toggle en una sesión anterior (que cerró sin apretar Empezar),
@@ -168,41 +174,10 @@ public sealed class OnboardingViewModel : ViewModelBase
 
     public string WelcomeH1 => _tierVariant switch
     {
-        OnboardingTierVariant.Pro => "Gracias por pasarte a Pro 🚀",
-        // Trial y Byok comparten el h1 genérico; lo que cambia es el sub-h tier-specific.
+        OnboardingTierVariant.Pro => "Bienvenido a Spikit Pro",
+        // Trial y Byok comparten el h1 genérico.
         _ => "Bienvenido a Spikit",
     };
-
-    // Sub-h tier-specific (sobre la lista de pasos). Pro no usa sub-h — el h1 ya dice todo.
-    public string WelcomeTierMessage => _tierVariant switch
-    {
-        OnboardingTierVariant.Byok => "Tu acceso BYOK es de por vida.",
-        OnboardingTierVariant.Trial => "Tenés 14 días para probarlo todo. Sin tarjeta, sin trabas.",
-        _ => string.Empty,
-    };
-
-    public bool WelcomeTierMessageVisible => !string.IsNullOrEmpty(WelcomeTierMessage);
-
-    // Intro a la lista de pasos. N varía por tier.
-    public string WelcomeIntro => IsByokVariant
-        ? "Vamos a configurarlo en 3 pasos rápidos."
-        : "Vamos a configurarlo en 2 pasos rápidos.";
-
-    // Items de la lista numerada del Welcome. Si IsByokVariant=false, Step1Text es Hotkey
-    // (no Provider) y Step3 no se muestra.
-    public string WelcomeStep1Text => IsByokVariant
-        ? "Conectá tu API key"
-        : "Elegí tu hotkey";
-    public string WelcomeStep2Text => IsByokVariant
-        ? "Elegí tu hotkey"
-        : "Probalo";
-    public string WelcomeStep3Text => "Probalo"; // solo se muestra en BYOK
-    public bool WelcomeStep3Visible => IsByokVariant;
-
-    // Caption tiempo. BYOK pide ~2 min (Provider requiere ingresar key); Trial/Pro ~1 min.
-    public string WelcomeTimeText => IsByokVariant
-        ? "¿Ya configurás API keys? Esto te lleva ~2 min."
-        : "Esto te lleva ~1 minuto.";
 
     // ===== Flags de visibilidad por step =====
 

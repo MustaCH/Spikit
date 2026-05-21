@@ -75,7 +75,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Logo hero (logo_rojo.png) — design-system §1 dice 80px height para hero del setup wizard.
@@ -102,55 +101,15 @@
                    TextWrapping="Wrap"
                    Margin="0,0,0,12"/>
 
-        <StackPanel Grid.Row="2" Margin="0,0,0,28">
-            <!-- Sub-h tier-specific (collapsed en Pro). -->
-            <TextBlock Text="{Binding WelcomeTierMessage}"
-                       Style="{StaticResource SpkTypeBodyLgStyle}"
-                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center"
-                       TextWrapping="Wrap"
-                       MaxWidth="400"
-                       Margin="0,0,0,12"
-                       Visibility="{Binding WelcomeTierMessageVisible, Converter={StaticResource BoolToVis}}"/>
-
-            <!-- Intro a la lista — "2 pasos rápidos" o "3 pasos rápidos" según variante. -->
-            <TextBlock Text="{Binding WelcomeIntro}"
-                       Style="{StaticResource SpkTypeBodyLgStyle}"
-                       Foreground="{DynamicResource SpkFgSecondaryBrush}"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,20"/>
-
-            <StackPanel HorizontalAlignment="Center">
-                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           Margin="0,0,0,6">
-                    <Run Text="1." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
-                    <Run Text="  "/>
-                    <Run Text="{Binding WelcomeStep1Text}"/>
-                </TextBlock>
-                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           Margin="0,0,0,6">
-                    <Run Text="2." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
-                    <Run Text="  "/>
-                    <Run Text="{Binding WelcomeStep2Text}"/>
-                </TextBlock>
-                <!-- Step 3 solo visible en BYOK. -->
-                <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
-                           Foreground="{DynamicResource SpkFgPrimaryBrush}"
-                           Visibility="{Binding WelcomeStep3Visible, Converter={StaticResource BoolToVis}}">
-                    <Run Text="3." FontWeight="SemiBold" Foreground="{DynamicResource SpkFgBrandBrush}"/>
-                    <Run Text="  "/>
-                    <Run Text="{Binding WelcomeStep3Text}"/>
-                </TextBlock>
-            </StackPanel>
-        </StackPanel>
-
-        <!-- Caption de tiempo — "~2 min" (BYOK) o "~1 minuto" (Trial/Pro). -->
-        <TextBlock Grid.Row="3"
-                   Text="{Binding WelcomeTimeText}"
-                   Style="{StaticResource SpkTypeCaptionStyle}"
+        <!-- Copy reducido a un solo sub-h genérico — sin lista de pasos, sin caption
+             de tiempo, sin sub-h tier-specific. Decisión post-review visual con Nacho:
+             la imagen de fondo (planeta-spikit) aporta la atmósfera y el copy mínimo
+             deja respirar la pantalla. El detalle de pasos / tiempo aparece en el
+             stepper de los pasos siguientes. -->
+        <TextBlock Grid.Row="2"
+                   Text="Vamos a configurarlo"
+                   Style="{StaticResource SpkTypeBodyLgStyle}"
+                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
                    HorizontalAlignment="Center"
                    TextAlignment="Center"/>
     </Grid>

@@ -117,83 +117,12 @@ public class OnboardingViewModelTests
     }
 
     [Fact]
-    public void Welcome_h1_for_pro_is_celebratory_with_emoji()
+    public void Welcome_h1_for_pro_mentions_pro_explicitly()
     {
         var vm = MakeVm(Tier.Pro);
 
-        Assert.Contains("Pro", vm.WelcomeH1);
-        Assert.Contains("🚀", vm.WelcomeH1);
-    }
-
-    [Fact]
-    public void Welcome_tier_message_visible_only_for_byok_and_trial()
-    {
-        Assert.True(MakeVm(Tier.Byok).WelcomeTierMessageVisible);
-        Assert.True(MakeVm(Tier.Trial).WelcomeTierMessageVisible);
-        Assert.False(MakeVm(Tier.Pro).WelcomeTierMessageVisible);
-    }
-
-    [Fact]
-    public void Welcome_tier_message_byok_says_lifetime()
-    {
-        var vm = MakeVm(Tier.Byok);
-
-        Assert.Contains("BYOK", vm.WelcomeTierMessage);
-        Assert.Contains("de por vida", vm.WelcomeTierMessage);
-    }
-
-    [Fact]
-    public void Welcome_tier_message_trial_says_14_days_no_card()
-    {
-        var vm = MakeVm(Tier.Trial);
-
-        Assert.Contains("14 días", vm.WelcomeTierMessage);
-        Assert.Contains("Sin tarjeta", vm.WelcomeTierMessage);
-    }
-
-    [Fact]
-    public void Welcome_intro_mentions_correct_step_count()
-    {
-        Assert.Contains("3 pasos", MakeVm(Tier.Byok).WelcomeIntro);
-        Assert.Contains("2 pasos", MakeVm(Tier.Trial).WelcomeIntro);
-        Assert.Contains("2 pasos", MakeVm(Tier.Pro).WelcomeIntro);
-    }
-
-    [Fact]
-    public void Welcome_step_list_byok_has_three_items_with_api_key_first()
-    {
-        var vm = MakeVm(Tier.Byok);
-
-        Assert.Contains("API key", vm.WelcomeStep1Text);
-        Assert.Contains("hotkey", vm.WelcomeStep2Text);
-        Assert.Equal("Probalo", vm.WelcomeStep3Text);
-        Assert.True(vm.WelcomeStep3Visible);
-    }
-
-    [Fact]
-    public void Welcome_step_list_trial_pro_has_two_items_starting_with_hotkey()
-    {
-        foreach (var tier in new[] { Tier.Trial, Tier.Pro })
-        {
-            var vm = MakeVm(tier);
-
-            Assert.Contains("hotkey", vm.WelcomeStep1Text);
-            Assert.Equal("Probalo", vm.WelcomeStep2Text);
-            Assert.False(vm.WelcomeStep3Visible);
-        }
-    }
-
-    [Fact]
-    public void Welcome_time_text_byok_mentions_two_minutes()
-    {
-        Assert.Contains("~2 min", MakeVm(Tier.Byok).WelcomeTimeText);
-    }
-
-    [Fact]
-    public void Welcome_time_text_trial_pro_mentions_one_minute()
-    {
-        Assert.Contains("~1 minuto", MakeVm(Tier.Trial).WelcomeTimeText);
-        Assert.Contains("~1 minuto", MakeVm(Tier.Pro).WelcomeTimeText);
+        Assert.Equal("Bienvenido a Spikit Pro", vm.WelcomeH1);
+        Assert.DoesNotContain("🚀", vm.WelcomeH1);
     }
 
     // ===== Stepper visibility (Step3 + Line23) =====

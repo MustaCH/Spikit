@@ -255,18 +255,24 @@
     <Border BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
             BorderThickness="1">
         <Grid>
-            <!-- Glow rojo radial al fondo: anclado al borde inferior. -->
+            <!-- Fondo del onboarding: imagen planeta-spikit cubriendo toda la window
+                 (UniformToFill + centro). La imagen ya trae su propio glow rojo
+                 atmosférico (nebulosas + starfield). IsHitTestVisible=False para no
+                 robar clicks al content. -->
             <Border IsHitTestVisible="False">
                 <Border.Background>
-                    <RadialGradientBrush GradientOrigin="0.5,1.05"
-                                         Center="0.5,1.05"
-                                         RadiusX="0.85" RadiusY="0.55">
-                        <GradientStop Offset="0.0" Color="#3DFF3B30"/>
-                        <GradientStop Offset="0.55" Color="#14FF3B30"/>
-                        <GradientStop Offset="1.0" Color="#00FF3B30"/>
-                    </RadialGradientBrush>
+                    <ImageBrush ImageSource="pack://application:,,,/Resources/Brand/planeta-spikit.png"
+                                Stretch="UniformToFill"
+                                AlignmentX="Center"
+                                AlignmentY="Center"/>
                 </Border.Background>
             </Border>
+
+            <!-- Overlay negro sutil encima de la imagen para que el copy y los controles
+                 tengan más contraste sin perder la atmósfera del fondo. 45% alpha —
+                 ajustado post-review con Nacho. -->
+            <Border IsHitTestVisible="False"
+                    Background="#73000000"/>
 
             <Grid>
                 <Grid.RowDefinitions>

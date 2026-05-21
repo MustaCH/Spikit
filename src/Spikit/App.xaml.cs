@@ -57,6 +57,24 @@ public partial class App : Application
         _cliArgs = cliArgs;
         _instanceGuard = instanceGuard;
         InitializeComponent();
+
+        // EP-11.5 dev — handlers de excepciones no manejadas para que crashes silenciosos
+        // queden capturados en el log de Serilog en lugar de morirse contra KERNELBASE.
+        // Útil durante desarrollo cuando Sentry no está activo.
+        AppDomain.CurrentDomain.UnhandledException += (_, ev) =>
+        {
+            _logger.LogCritical(ev.ExceptionObject as Exception, "UNHANDLED AppDomain exception");
+            Serilog.Log.CloseAndFlush();
+        };
+        DispatcherUnhandledException += (_, ev) =>
+        {
+            _logger.LogCritical(ev.Exception, "UNHANDLED Dispatcher exception");
+            Serilog.Log.CloseAndFlush();
+        };
+        TaskScheduler.UnobservedTaskException += (_, ev) =>
+        {
+            _logger.LogCritical(ev.Exception, "UNHANDLED TaskScheduler exception");
+        };
     }
 
     protected override async void OnStartup(StartupEventArgs e)
