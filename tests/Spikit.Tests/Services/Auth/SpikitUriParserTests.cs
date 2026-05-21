@@ -104,4 +104,38 @@ public class SpikitUriParserTests
         Assert.Equal(SpikitUriKind.AuthCallback, result!.Kind);
         Assert.Empty(result.Params);
     }
+
+    // ====== auth-pending (EP-11.3, cierre Q-9 de ADR-0008) ======
+
+    [Fact]
+    public void TryParse_recognizes_auth_pending_with_email_param()
+    {
+        var result = SpikitUriParser.TryParse(
+            "spikit://auth-pending?email=nacho%40spikit.dev");
+
+        Assert.NotNull(result);
+        Assert.Equal(SpikitUriKind.AuthPending, result!.Kind);
+        Assert.Equal("nacho@spikit.dev", result.Params["email"]);
+    }
+
+    [Fact]
+    public void TryParse_auth_pending_url_decodes_email_with_special_chars()
+    {
+        var result = SpikitUriParser.TryParse(
+            "spikit://auth-pending?email=user%2Btag%40example.com");
+
+        Assert.NotNull(result);
+        Assert.Equal(SpikitUriKind.AuthPending, result!.Kind);
+        Assert.Equal("user+tag@example.com", result.Params["email"]);
+    }
+
+    [Fact]
+    public void TryParse_auth_pending_host_case_insensitive()
+    {
+        var result = SpikitUriParser.TryParse(
+            "spikit://AUTH-PENDING?email=a%40b.co");
+
+        Assert.NotNull(result);
+        Assert.Equal(SpikitUriKind.AuthPending, result!.Kind);
+    }
 }

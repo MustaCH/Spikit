@@ -1,0 +1,258 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+
+    <!--
+        Botones compartidos por las superficies hero (Onboarding, LoginWindow, futura
+        Welcome screen). Formalizados con EP-11.3 a partir de los estilos in-XAML de
+        OnboardingWindow.xaml (líneas 38-246) para que LoginWindow pueda consumirlos
+        sin duplicar XAML. Specs visuales en design-system.md §9.1.
+
+        Convención de nombre Spk* — coherente con el resto del theme (SpkBgCanvasBrush,
+        SpkTypeBodyStyle, etc.).
+
+        Nota: OnboardingWindow.xaml todavía declara sus propios OnbPrimaryButton/
+        OnbSecondaryButton/OnbGhostButton/WindowCloseButtonStyle inlineados — son
+        visualmente idénticos a estos Spk*. Migrar el Onboarding a los Spk*
+        compartidos es un cleanup pendiente (entra en EP-11.4 o follow-up).
+    -->
+
+    <!-- ====== SpkPrimaryHeroButton ======
+         Variante "lift+glow on hover" del primary lg. Exclusiva de CTAs en superficies
+         hero (Welcome del Onboarding, Login states 0.1/0.6, Error de validating, etc.).
+
+         - radius pill 20px (no el default radius.md=6px de los primary normales)
+         - padding 12 28, min-width 128
+         - hover: ScaleTransform 1.0→1.03 + DropShadowEffect (BlurRadius 0→22,
+           Opacity 0→0.7, color = SpkBrandPrimary) simultáneos en motion.base (160ms).
+         - exit: reverso simétrico.
+         - disabled: opacity 0.4, cursor Arrow.
+
+         Implementación heredada de OnbPrimaryButton (OnboardingWindow.xaml líneas 38-118),
+         formalizada acá para reuso. -->
+    <Style x:Key="SpkPrimaryHeroButton" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource SpkBgBrandSolidBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgOnBrandBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="28,12"/>
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="MinWidth" Value="128"/>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="HoverScale" ScaleX="1.0" ScaleY="1.0"/>
+                        </Grid.RenderTransform>
+                        <Grid.RenderTransformOrigin>0.5,0.5</Grid.RenderTransformOrigin>
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="20"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect x:Name="BgGlow"
+                                                  BlurRadius="0"
+                                                  ShadowDepth="0"
+                                                  Color="#FF3B30"
+                                                  Opacity="0"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1.03" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1.03" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                         Storyboard.TargetProperty="BlurRadius"
+                                                         To="22" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.7" Duration="0:0:0.16"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1.0" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="HoverScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1.0" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                         Storyboard.TargetProperty="BlurRadius"
+                                                         To="0" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="BgGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.16"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.4"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ====== SpkSecondaryButton ======
+         Secondary outlined: bg elevado, border default, hover sube a surface + border strong.
+         Sin lift+glow (no es CTA hero).
+         Heredado de OnbSecondaryButton (OnboardingWindow.xaml líneas 120-155). -->
+    <Style x:Key="SpkSecondaryButton" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource SpkBorderDefaultBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="28,12"/>
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="MinWidth" Value="128"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="20"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgSurfaceBrush}"/>
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource SpkBorderStrongBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.4"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ====== SpkGhostButton ======
+         Sin fondo, color secondary, hover sube foreground a primary.
+         Usado para acciones complementarias: "Saltar" del onboarding, "Reenviar email"
+         del LoginWindow 0.2, "Volver a empezar" del LoginWindow 0.2.
+         Heredado de OnbGhostButton (OnboardingWindow.xaml líneas 157-182). -->
+    <Style x:Key="SpkGhostButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="16,10"/>
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="20"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgMutedBrush}"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ====== SpkLinkButton ======
+         Texto plano sin chrome — para "← Volver a empezar" del LoginWindow 0.2.
+         fg.secondary → fg.primary en hover. Sin background, sin border, sin padding extra. -->
+    <Style x:Key="SpkLinkButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="FontFamily" Value="{DynamicResource SpkFontGeist}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="Transparent"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ====== SpkWindowCloseButton ======
+         Botón ✕ del title bar custom. Hit-testable adentro del WindowChrome.
+         Heredado de WindowCloseButtonStyle (OnboardingWindow.xaml líneas 214-246). -->
+    <Style x:Key="SpkWindowCloseButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource SpkFgSecondaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6">
+                        <Path x:Name="Glyph"
+                              Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                              Stroke="{TemplateBinding Foreground}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SpkBgElevatedBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource SpkFgPrimaryBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,584 @@
+<Window x:Class="Spikit.Views.Auth.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:vm="clr-namespace:Spikit.ViewModels.Auth"
+        mc:Ignorable="d"
+        Title="Spikit — Iniciar sesión"
+        Height="600" Width="480"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        UseLayoutRounding="True"
+        Background="{DynamicResource SpkBgCanvasBrush}"
+        d:DataContext="{d:DesignInstance Type=vm:LoginViewModel}">
+
+    <!-- Custom chrome — idéntico al Onboarding shell (EP-3.1) y SettingsWindow para que
+         la transición LoginWindow → Onboarding/Settings se sienta como "una sola app".
+         CaptionHeight=44 hace draggable los primeros 44px. ResizeBorderThickness=0
+         porque la window es de tamaño fijo. GlassFrameThickness="-1" extiende el system
+         frame del DWM (requisito de Mica con WindowStyle=None — ver Native/Dwmapi.cs). -->
+    <WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44"
+                            ResizeBorderThickness="0"
+                            CornerRadius="0"
+                            GlassFrameThickness="-1"
+                            UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <!-- Border outermost: marco 1px subtle. Sin Background propio para no tapar la Mica.
+         El Window.Background del XAML provee el solid de fallback (Win10 / Win11 < 22H2);
+         DwmHelper.ApplyBackdrop hace Window.Background = SpkBgCanvasMicaBrush en runtime
+         cuando Mica está disponible. -->
+    <Border BorderBrush="{DynamicResource SpkBorderSubtleBrush}"
+            BorderThickness="1">
+        <Grid>
+            <!-- Glow rojo radial al fondo, anclado al borde inferior. Idéntico al patrón
+                 del Onboarding shell (EP-3.1) — formaliza shadow.ambient.brand de §6 del
+                 design-system. IsHitTestVisible=False para no robar clicks al contenido. -->
+            <Border IsHitTestVisible="False">
+                <Border.Background>
+                    <RadialGradientBrush GradientOrigin="0.5,1.05"
+                                         Center="0.5,1.05"
+                                         RadiusX="0.85" RadiusY="0.55">
+                        <GradientStop Offset="0.0" Color="#3DFF3B30"/>
+                        <GradientStop Offset="0.55" Color="#14FF3B30"/>
+                        <GradientStop Offset="1.0" Color="#00FF3B30"/>
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44"/>   <!-- Title bar custom (draggable) -->
+                    <RowDefinition Height="*"/>    <!-- Content host: rota templates por State -->
+                </Grid.RowDefinitions>
+
+                <!-- ====== Title bar ====== -->
+                <Grid Grid.Row="0" Background="Transparent">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                Margin="14,0,0,0"
+                                VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Resources/Brand/logo_rojo.png"
+                               Height="18" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               VerticalAlignment="Center"/>
+                        <TextBlock Text="Spikit"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0"/>
+                        <TextBlock Text=" · Iniciar sesión"
+                                   FontFamily="{DynamicResource SpkFontGeist}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="2"
+                            Style="{StaticResource SpkWindowCloseButton}"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Click="CloseButton_Click"
+                            ToolTip="Cerrar"/>
+                </Grid>
+
+                <!-- ====== Content host: 7 paneles, uno por LoginState ======
+                     Cada panel se muestra con Visibility=Visible cuando IsXxx del VM
+                     es true. Centrados horizontal+vertical. La spec §10.12 detalla
+                     gaps y tipografías por estado. -->
+                <Grid Grid.Row="1" Margin="40,16,40,48">
+
+                    <!-- ===== 0.1 Idle ===== -->
+                    <StackPanel Visibility="{Binding IsIdle, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="360">
+                        <!-- Logo squircle 80×80 -->
+                        <Image Source="pack://application:,,,/Resources/Brand/icono_rojo.png"
+                               Width="80" Height="80"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,24"/>
+
+                        <!-- H1 "Bienvenido a Spikit" -->
+                        <TextBlock Text="Bienvenido a Spikit"
+                                   Style="{StaticResource SpkTypeDisplayStyle}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,16"/>
+
+                        <!-- Body con copy variable por IdleVariant -->
+                        <TextBlock Text="{Binding IdleBodyText}"
+                                   Style="{StaticResource SpkTypeBodyLgStyle}"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="360"
+                                   Margin="0,0,0,32"/>
+
+                        <!-- CTA primary-hero -->
+                        <Button Style="{StaticResource SpkPrimaryHeroButton}"
+                                Command="{Binding StartLoginCommand}"
+                                MinWidth="220"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,16">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource LucideLogInGeometry}"
+                                      Stretch="Uniform"
+                                      Width="16" Height="16"
+                                      Stroke="{DynamicResource SpkFgOnBrandBrush}"
+                                      StrokeThickness="2.2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,8,0"/>
+                                <TextBlock Text="Iniciar sesión"
+                                           VerticalAlignment="Center"/>
+                                <Path Data="{StaticResource LucideExternalLinkGeometry}"
+                                      Stretch="Uniform"
+                                      Width="14" Height="14"
+                                      Stroke="{DynamicResource SpkFgOnBrandBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalAlignment="Center"
+                                      Margin="10,0,0,0"
+                                      Opacity="0.85"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Caption -->
+                        <TextBlock Text="¿Primera vez? Vas a crear tu cuenta con el mismo botón."
+                                   Style="{StaticResource SpkTypeCaptionStyle}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="320"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- ===== 0.2 WaitingForMagicLink ===== -->
+                    <StackPanel Visibility="{Binding IsWaitingForMagicLink, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="360">
+                        <!-- Icon mail (32px) con pulse infinite — Storyboard arranca en Loaded -->
+                        <Path x:Name="MailPulseIcon"
+                              Data="{StaticResource LucideMailGeometry}"
+                              Stretch="Uniform"
+                              Width="32" Height="32"
+                              Stroke="{DynamicResource SpkFgBrandBrush}"
+                              StrokeThickness="2.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalAlignment="Center"
+                              RenderTransformOrigin="0.5,0.5"
+                              Margin="0,0,0,24">
+                            <Path.RenderTransform>
+                                <ScaleTransform x:Name="MailPulseScale" ScaleX="1" ScaleY="1"/>
+                            </Path.RenderTransform>
+                            <Path.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="MailPulseScale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             From="1" To="1.05" Duration="0:0:1"
+                                                             AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="MailPulseScale"
+                                                             Storyboard.TargetProperty="ScaleY"
+                                                             From="1" To="1.05" Duration="0:0:1"
+                                                             AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="MailPulseIcon"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="1" To="0.9" Duration="0:0:1"
+                                                             AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Path.Triggers>
+                        </Path>
+
+                        <TextBlock Text="Revisá tu inbox"
+                                   Style="{StaticResource SpkTypeH2Style}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,16"/>
+
+                        <TextBlock Style="{StaticResource SpkTypeBodyStyle}"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,2">
+                            Te mandamos un magic link a:
+                        </TextBlock>
+
+                        <TextBlock Text="{Binding PendingEmail}"
+                                   FontFamily="{DynamicResource SpkFontGeistMono}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SpkFgPrimaryBrush}"
+                                   TextAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding PendingEmail}"
+                                   Margin="0,0,0,20"/>
+
+                        <TextBlock Text="Hacé click en el link del email para completar el login."
+                                   Style="{StaticResource SpkTypeBodyStyle}"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="320"
+                                   Margin="0,0,0,32"/>
+
+                        <Button Style="{StaticResource SpkGhostButton}"
+                                Command="{Binding ResendMagicLinkCommand}"
+                                Content="{Binding ResendButtonLabel}"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,16"/>
+
+                        <Button Style="{StaticResource SpkLinkButton}"
+                                Command="{Binding StartOverCommand}"
+                                HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource LucideArrowLeftGeometry}"
+                                      Stretch="Uniform"
+                                      Width="12" Height="12"
+                                      Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,6,0"/>
+                                <TextBlock Text="Volver a empezar"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- ===== 0.3 ValidatingToken ===== -->
+                    <StackPanel Visibility="{Binding IsValidatingToken, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="320">
+                        <!-- LogoWave shimmer inline (48px): 3 barras verticales con ColorAnimation
+                             escalonado. Spec §10.12 — primera vez que el LogoWave aparece fuera
+                             de la pill. Sin pill chrome, sin glow rojo — sólo las barras. -->
+                        <Grid Width="48" Height="48"
+                              HorizontalAlignment="Center"
+                              Margin="0,0,0,24">
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom">
+                                <Rectangle x:Name="Wave1"
+                                           Width="6" Height="20"
+                                           RadiusX="3" RadiusY="3"
+                                           Fill="{DynamicResource SpkBorderStrongBrush}"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="Wave2"
+                                           Width="6" Height="32"
+                                           RadiusX="3" RadiusY="3"
+                                           Fill="{DynamicResource SpkBorderStrongBrush}"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="Wave3"
+                                           Width="6" Height="44"
+                                           RadiusX="3" RadiusY="3"
+                                           Fill="{DynamicResource SpkBorderStrongBrush}"
+                                           VerticalAlignment="Bottom"/>
+                            </StackPanel>
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="Wave1"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.4" To="1" Duration="0:0:0.7"
+                                                             AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Wave2"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.4" To="1" Duration="0:0:0.7"
+                                                             AutoReverse="True"
+                                                             BeginTime="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetName="Wave3"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.4" To="1" Duration="0:0:0.7"
+                                                             AutoReverse="True"
+                                                             BeginTime="0:0:0.4"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                        </Grid>
+
+                        <TextBlock Text="Validando tu sesión…"
+                                   Style="{StaticResource SpkTypeH2Style}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,12"/>
+
+                        <TextBlock Text="{Binding ValidatingCaption}"
+                                   Style="{StaticResource SpkTypeCaptionStyle}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="280"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- ===== 0.4 LoadingEntitlement ===== -->
+                    <StackPanel Visibility="{Binding IsLoadingEntitlement, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="320">
+                        <!-- Mismo LogoWave shimmer que 0.3 (continuidad visual). -->
+                        <Grid Width="48" Height="48"
+                              HorizontalAlignment="Center"
+                              Margin="0,0,0,24">
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom">
+                                <Rectangle x:Name="Wave1b"
+                                           Width="6" Height="20"
+                                           RadiusX="3" RadiusY="3"
+                                           Fill="{DynamicResource SpkBorderStrongBrush}"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="Wave2b"
+                                           Width="6" Height="32"
+                                           RadiusX="3" RadiusY="3"
+                                           Fill="{DynamicResource SpkBorderStrongBrush}"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="Wave3b"
+                                           Width="6" Height="44"
+                                           RadiusX="3" RadiusY="3"
+                                           Fill="{DynamicResource SpkBorderStrongBrush}"
+                                           VerticalAlignment="Bottom"/>
+                            </StackPanel>
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="Wave1b"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.4" To="1" Duration="0:0:0.7"
+                                                             AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Wave2b"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.4" To="1" Duration="0:0:0.7"
+                                                             AutoReverse="True"
+                                                             BeginTime="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetName="Wave3b"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.4" To="1" Duration="0:0:0.7"
+                                                             AutoReverse="True"
+                                                             BeginTime="0:0:0.4"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                        </Grid>
+
+                        <TextBlock Text="Casi listo…"
+                                   Style="{StaticResource SpkTypeH2Style}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,12"/>
+
+                        <TextBlock Text="Cargando tu plan."
+                                   Style="{StaticResource SpkTypeCaptionStyle}"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- ===== 0.5 Success (microflash) ===== -->
+                    <StackPanel x:Name="SuccessPanel"
+                                Visibility="{Binding IsSuccess, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
+                        <!-- Icon check-circle 32px brand con fade-in + scale 0.9→1.0 al aparecer -->
+                        <Path x:Name="SuccessIcon"
+                              Data="{StaticResource LucideCheckCircleGeometry}"
+                              Stretch="Uniform"
+                              Width="32" Height="32"
+                              Stroke="{DynamicResource SpkFgBrandBrush}"
+                              StrokeThickness="2.4"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalAlignment="Center"
+                              Opacity="0"
+                              RenderTransformOrigin="0.5,0.5"
+                              Margin="0,0,0,16">
+                            <Path.RenderTransform>
+                                <ScaleTransform x:Name="SuccessIconScale" ScaleX="0.9" ScaleY="0.9"/>
+                            </Path.RenderTransform>
+                            <Path.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SuccessIcon"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="1" Duration="0:0:0.1"/>
+                                            <DoubleAnimation Storyboard.TargetName="SuccessIconScale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             From="0.9" To="1" Duration="0:0:0.1"/>
+                                            <DoubleAnimation Storyboard.TargetName="SuccessIconScale"
+                                                             Storyboard.TargetProperty="ScaleY"
+                                                             From="0.9" To="1" Duration="0:0:0.1"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Path.Triggers>
+                        </Path>
+
+                        <TextBlock Text="Listo 👋"
+                                   Style="{StaticResource SpkTypeH2Style}"
+                                   TextAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- ===== 0.6 ErrorValidating ===== -->
+                    <StackPanel Visibility="{Binding IsErrorValidating, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="360">
+                        <Path Data="{StaticResource LucideXCircleGeometry}"
+                              Stretch="Uniform"
+                              Width="32" Height="32"
+                              Stroke="{DynamicResource SpkStateErrorFgBrush}"
+                              StrokeThickness="2.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalAlignment="Center"
+                              Margin="0,0,0,20"/>
+
+                        <TextBlock Text="No pudimos validarte"
+                                   Style="{StaticResource SpkTypeH2Style}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,16"/>
+
+                        <TextBlock Text="El magic link puede haber expirado o ser inválido. Pedí uno nuevo."
+                                   Style="{StaticResource SpkTypeBodyLgStyle}"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="360"
+                                   Margin="0,0,0,32"/>
+
+                        <Button Style="{StaticResource SpkPrimaryHeroButton}"
+                                Command="{Binding StartLoginCommand}"
+                                MinWidth="220"
+                                HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource LucideLogInGeometry}"
+                                      Stretch="Uniform"
+                                      Width="16" Height="16"
+                                      Stroke="{DynamicResource SpkFgOnBrandBrush}"
+                                      StrokeThickness="2.2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,8,0"/>
+                                <TextBlock Text="Volver a intentar"
+                                           VerticalAlignment="Center"/>
+                                <Path Data="{StaticResource LucideExternalLinkGeometry}"
+                                      Stretch="Uniform"
+                                      Width="14" Height="14"
+                                      Stroke="{DynamicResource SpkFgOnBrandBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalAlignment="Center"
+                                      Margin="10,0,0,0"
+                                      Opacity="0.85"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Support hint tras 3 errores consecutivos (§10.11.D pattern) -->
+                        <TextBlock Style="{StaticResource SpkTypeCaptionStyle}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="320"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,12,0,0"
+                                   Visibility="{Binding ShowSupportHint, Converter={StaticResource BoolToVis}}">
+                            <Run Text="¿Problemas? Escribinos a "/>
+                            <Run Text="hello@spikit.dev"
+                                 Foreground="{DynamicResource SpkFgBrandBrush}"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <!-- ===== 0.7 ErrorNetwork ===== -->
+                    <StackPanel Visibility="{Binding IsErrorNetwork, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="360">
+                        <Path Data="{StaticResource LucideWifiOffGeometry}"
+                              Stretch="Uniform"
+                              Width="32" Height="32"
+                              Stroke="{DynamicResource SpkFgSecondaryBrush}"
+                              StrokeThickness="2.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalAlignment="Center"
+                              Margin="0,0,0,20"/>
+
+                        <TextBlock Text="Sin conexión"
+                                   Style="{StaticResource SpkTypeH2Style}"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,16"/>
+
+                        <TextBlock Text="Necesitamos internet para verificar tu sesión. Reintentá cuando vuelvas a tener conexión."
+                                   Style="{StaticResource SpkTypeBodyLgStyle}"
+                                   Foreground="{DynamicResource SpkFgSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="360"
+                                   Margin="0,0,0,32"/>
+
+                        <Button Style="{StaticResource SpkSecondaryButton}"
+                                Command="{Binding RetryNetworkCommand}"
+                                MinWidth="180"
+                                HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource LucideRotateCcwGeometry}"
+                                      Stretch="Uniform"
+                                      Width="16" Height="16"
+                                      Stroke="{DynamicResource SpkFgPrimaryBrush}"
+                                      StrokeThickness="2.2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,8,0"/>
+                                <TextBlock Text="Reintentar"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

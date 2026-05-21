@@ -9,6 +9,12 @@ public enum SpikitUriKind
     Unknown,
     AuthCallback,
     BillingReturn,
+
+    // Emitido por la página `spikit.dev/auth` cuando el `signInWithOtp` responde 200
+    // (cierre Q-9 de ADR-0008 follow-up). Lleva sólo el email destino del magic link
+    // (URL-encoded en `email`), sin tokens. Lo consume el LoginWindow para mutar al
+    // estado 0.2 `waiting_for_magic_link` mostrando el email exacto.
+    AuthPending,
 }
 
 // Resultado de parsear un URI `spikit://...`. Los parámetros vienen normalizados:
@@ -29,6 +35,7 @@ public static class SpikitUriParser
     public const string Scheme = "spikit";
 
     private const string AuthCallbackHost = "auth-callback";
+    private const string AuthPendingHost = "auth-pending";
     private const string BillingReturnHost = "billing-return";
 
     public static ParsedSpikitUri? TryParse(string? rawUri)
@@ -40,6 +47,7 @@ public static class SpikitUriParser
         var kind = uri.Host.ToLowerInvariant() switch
         {
             AuthCallbackHost => SpikitUriKind.AuthCallback,
+            AuthPendingHost => SpikitUriKind.AuthPending,
             BillingReturnHost => SpikitUriKind.BillingReturn,
             _ => SpikitUriKind.Unknown,
         };

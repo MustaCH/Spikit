@@ -45,4 +45,68 @@
         M 7,2 h 1 a 4,4 0 0,1 4,4 v 1
     </Geometry>
 
+    <!-- ===== Iconos agregados con EP-11.3 (LoginWindow + AccountWindow) ===== -->
+
+    <!-- mail: sobre con tapa triangular. -->
+    <Geometry x:Key="LucideMailGeometry">
+        M 4,4 h 16 c 1.1,0 2,0.9 2,2 v 12 c 0,1.1 -0.9,2 -2,2 H 4 c -1.1,0 -2,-0.9 -2,-2 V 6 c 0,-1.1 0.9,-2 2,-2 Z
+        M 22,7 L 13.03,13.7 a 2,2 0 0,1 -2.06,0 L 2,7
+    </Geometry>
+
+    <!-- log-in: flecha entrando a un panel (entry icon). -->
+    <Geometry x:Key="LucideLogInGeometry">
+        M 15,3 h 4 a 2,2 0 0,1 2,2 v 14 a 2,2 0 0,1 -2,2 h -4
+        M 10,17 l 5,-5 -5,-5
+        M 15,12 H 3
+    </Geometry>
+
+    <!-- external-link: caja con flecha hacia afuera arriba-derecha. -->
+    <Geometry x:Key="LucideExternalLinkGeometry">
+        M 15,3 h 6 v 6
+        M 10,14 L 21,3
+        M 18,13 v 6 a 2,2 0 0,1 -2,2 H 5 a 2,2 0 0,1 -2,-2 V 8 a 2,2 0 0,1 2,-2 h 6
+    </Geometry>
+
+    <!-- check-circle: círculo con tilde adentro. -->
+    <Geometry x:Key="LucideCheckCircleGeometry">
+        M 22,11.08 V 12 a 10,10 0 1,1 -5.93,-9.14
+        M 22,4 L 12,14.01 l -3,-3
+    </Geometry>
+
+    <!-- x-circle: círculo con cruz adentro. -->
+    <Geometry x:Key="LucideXCircleGeometry">
+        M 12,2 A 10,10 0 1,0 12,22 A 10,10 0 1,0 12,2 Z
+        M 15,9 l -6,6
+        M 9,9 l 6,6
+    </Geometry>
+
+    <!-- wifi-off: ondas wifi con diagonal cruzando (sin conexión). -->
+    <Geometry x:Key="LucideWifiOffGeometry">
+        M 12,20 h 0.01
+        M 8.5,16.43 a 5,5 0 0,1 7,0
+        M 2,8.82 a 15,15 0 0,1 4.17,-2.65
+        M 10.66,5 c 4.01,-0.36 8.14,0.9 11.34,3.76
+        M 16.85,11.25 a 10,10 0 0,1 2.22,1.68
+        M 5,13 a 10,10 0 0,1 5.24,-2.76
+        M 2,2 l 20,20
+    </Geometry>
+
+    <!-- arrow-left: flecha horizontal a la izquierda. -->
+    <Geometry x:Key="LucideArrowLeftGeometry">
+        M 19,12 H 5
+        M 12,19 l -7,-7 7,-7
+    </Geometry>
+
+    <!-- arrow-right: flecha horizontal a la derecha. -->
+    <Geometry x:Key="LucideArrowRightGeometry">
+        M 5,12 h 14
+        M 12,5 l 7,7 -7,7
+    </Geometry>
+
+    <!-- rotate-ccw: flecha circular antihoraria (reintentar). -->
+    <Geometry x:Key="LucideRotateCcwGeometry">
+        M 3,12 a 9,9 0 1,0 9,-9 a 9.75,9.75 0 0,0 -6.74,2.74 L 3,8
+        M 3,3 v 5 h 5
+    </Geometry>
+
 </ResourceDictionary>

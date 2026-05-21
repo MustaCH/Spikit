@@ -25,6 +25,57 @@ public sealed class RelayCommand : ICommand
     }
 }
 
+// Variante async — bindea botones que disparan operaciones que esperan I/O (login,
+// reenvío de magic link, fetch del entitlement). Mientras la task está en vuelo, el
+// botón queda disabled (gracias al flag `_isExecuting` + RaiseCanExecuteChanged).
+// Si la task tira, la excepción se loguea — bindings de UI no deben crashear el proceso.
+public sealed class AsyncRelayCommand : ICommand
+{
+    private readonly Func<CancellationToken, Task> _execute;
+    private readonly Func<bool>? _canExecute;
+    private bool _isExecuting;
+
+    public AsyncRelayCommand(Func<CancellationToken, Task> execute, Func<bool>? canExecute = null)
+    {
+        _execute = execute;
+        _canExecute = canExecute;
+    }
+
+    // Helper para los call sites que no usan el CancellationToken.
+    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
+        : this(_ => execute(), canExecute)
+    {
+    }
+
+    public bool CanExecute(object? parameter) =>
+        !_isExecuting && (_canExecute?.Invoke() ?? true);
+
+    public async void Execute(object? parameter)
+    {
+        if (!CanExecute(parameter)) return;
+        _isExecuting = true;
+        RaiseCanExecuteChanged();
+        try
+        {
+            await _execute(CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelaciones cooperativas no son errores — ignorar.
+        }
+        finally
+        {
+            _isExecuting = false;
+            RaiseCanExecuteChanged();
+        }
+    }
+
+    public event EventHandler? CanExecuteChanged;
+
+    public void RaiseCanExecuteChanged() =>
+        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+}
+
 // Variante parametrizada. Usada por SettingsViewModel.NavigateToCommand para que el sidebar
 // pueda hacer `Command="{Binding NavigateToCommand}" CommandParameter="Provider"` en lugar de
 // declarar 8 comandos separados (uno por sección). El parámetro llega desde XAML como string

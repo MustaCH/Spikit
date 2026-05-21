@@ -25,9 +25,11 @@ using Spikit.Services.Tray;
 using Spikit.Services.Transcription;
 using Spikit.Services.Velopack;
 using Spikit.ViewModels;
+using Spikit.ViewModels.Auth;
 using Spikit.ViewModels.Onboarding;
 using Spikit.ViewModels.Settings;
 using Spikit.Views;
+using Spikit.Views.Auth;
 using Spikit.Views.Diagnostics;
 using Spikit.Views.Onboarding;
 using Spikit.Views.Settings;
@@ -132,6 +134,14 @@ public static class Program
                     services.AddTransient<ProviderStepViewModel>();
                     services.AddTransient<HotkeyStepViewModel>();
                     services.AddTransient<PruebaStepViewModel>();
+
+                    // LoginWindow (EP-11.3) — ventana exclusiva pre-sesión. Misma razón que
+                    // Onboarding para ser Transient: cada apertura arranca limpia (no
+                    // PendingEmail residual, no cooldown corriendo, no consecutivos de error
+                    // que sobrevivan al close). El cableado al SpikitUriDispatcher + el
+                    // ruteo desde App.OnStartup van en EP-11.4.
+                    services.AddTransient<LoginWindow>();
+                    services.AddTransient<LoginViewModel>();
 
                     // Settings shell (EP-4.1). Transient por la misma razón que el onboarding:
                     // cada apertura debe arrancar limpia (currentSection en General, sin estados
